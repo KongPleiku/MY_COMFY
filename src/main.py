@@ -1,7 +1,7 @@
 import flet as ft
 
 def main(page: ft.Page):
-    # Android specific setup
+    # Android/Mobile Setup
     page.padding = 0
     page.spacing = 0
     page.theme_mode = ft.ThemeMode.DARK 
@@ -33,30 +33,29 @@ def main(page: ft.Page):
         filled=True,
         multiline=False,
         text_size=14,
-        expand=True,
-        content_padding=15
+        content_padding=15,
     )
 
-    # The list inside the floating container
+    # The list inside the expanding container
     suggestion_list = ft.ListView(spacing=0, padding=0)
     
-    # The Container that holds the list (Hidden by default)
+    # The Container ABOVE the prompt (Hidden by default via height=0)
+    # This acts as the "Space" that opens up.
     suggestion_container = ft.Container(
         content=suggestion_list,
         bgcolor=ft.colors.GREY_800,
         border_radius=10,
-        padding=5,
-        visible=False,
+        padding=0, # Remove padding when closed so it's perfectly hidden
         
-        # --- POSITIONING MAGIC FOR "GROW UP" EFFECT ---
-        # Instead of 'top', we use 'bottom'.
-        # The input is at bottom=0. The input is approx 50-60px tall.
-        # So we start this list at bottom=60.
-        bottom=60, 
-        left=0, 
-        right=0,
+        # Start completely collapsed
+        height=0,
+        opacity=0,
         
-        shadow=ft.BoxShadow(blur_radius=10, color=ft.colors.BLACK),
+        # Animation Magic: The prompt below will slide down as this grows
+        animate=ft.animation.Animation(300, ft.AnimationCurve.EASE_OUT),
+        animate_opacity=300,
+        
+        clip_behavior=ft.ClipBehavior.HARD_EDGE # Clean cut when expanding
     )
 
     # --- Logic ---
@@ -64,24 +63,32 @@ def main(page: ft.Page):
     def use_suggestion(e):
         prompt_field.value = e.control.data
         prompt_field.update()
-        suggestion_container.visible = False
+        
+        # Collapse the list (Prompt slides back UP)
+        suggestion_container.height = 0
+        suggestion_container.opacity = 0
         suggestion_container.update()
 
     def on_text_change(e):
         typed_text = e.control.value.lower()
         
+        # Close if empty
         if not typed_text:
-            suggestion_container.visible = False
+            suggestion_container.height = 0
+            suggestion_container.opacity = 0
             suggestion_container.update()
             return
 
         matches = [p for p in all_prompts if typed_text in p.lower()]
 
+        # Close if no matches
         if not matches:
-            suggestion_container.visible = False
+            suggestion_container.height = 0
+            suggestion_container.opacity = 0
             suggestion_container.update()
             return
 
+        # Populate List
         suggestion_list.controls.clear()
         for match in matches:
             suggestion_list.controls.append(
@@ -99,9 +106,9 @@ def main(page: ft.Page):
         list_height = len(matches) * 45 
         if list_height > 200: list_height = 200
         
+        # Expand the container (Pushing the prompt down)
         suggestion_container.height = list_height
-        suggestion_container.visible = True
-        
+        suggestion_container.opacity = 1
         suggestion_container.update()
         suggestion_list.update()
 
@@ -113,10 +120,57 @@ def main(page: ft.Page):
             prompt_field.focus()
         else:
             settings_panel.offset = ft.transform.Offset(0, 1)
-            suggestion_container.visible = False
+            # Reset when closing
+            suggestion_container.height = 0
+            suggestion_container.opacity = 0
         page.update()
 
     # --- Layout ---
+
+    # The content inside the Settings Panel
+    settings_content = ft.Column(
+        scroll=ft.ScrollMode.HIDDEN,
+        expand=True,
+        controls=[
+            # 1. Label on top
+            ft.Text("Enter Prompt", weight="bold", size=16),
+            ft.Container(height=5),
+
+            # 2. The Dynamic Prompt Section
+            # Since suggestion_container is FIRST, it appears ABOVE the prompt.
+            # When it expands, it pushes the prompt (and everything below) DOWN.
+            ft.Column(
+                spacing=5,
+                controls=[
+                    suggestion_container, # The Hint List (Expands)
+                    prompt_field,         # The Input Field (Slides down)
+                ]
+            ),
+            
+            # 3. The Rest of the Settings
+            ft.Divider(color=ft.colors.GREY_800, height=30),
+            
+            ft.Text("Image Settings", weight="bold", color=ft.colors.GREY_400),
+            ft.Container(
+                padding=10,
+                content=ft.Column([
+                    ft.Row([ft.Text("High Quality"), ft.Switch(value=True)], alignment="spaceBetween"),
+                    ft.Row([ft.Text("Private Mode"), ft.Switch(value=False)], alignment="spaceBetween"),
+                    ft.Divider(color=ft.colors.GREY_800),
+                    ft.Text("Creativity Level", color=ft.colors.GREY_400),
+                    ft.Slider(min=0, max=100, divisions=10, value=50),
+                    ft.Container(height=20),
+                    ft.Text("Model Version", weight="bold", color=ft.colors.GREY_400),
+                    ft.Dropdown(
+                        options=[ft.dropdown.Option("v1.0"), ft.dropdown.Option("v2.0")],
+                        bgcolor=ft.colors.BLACK38, border_radius=10
+                    ),
+                    # Space for scrolling test
+                    ft.Container(height=200),
+                ])
+            ),
+        ]
+    )
 
     settings_panel = ft.Container(
         height=page.height * 0.75, 
@@ -129,26 +183,19 @@ def main(page: ft.Page):
         
         content=ft.Column(
             controls=[
-                # Header
+                # Drag Handle
                 ft.Container(width=40, height=5, bgcolor=ft.colors.GREY_600, border_radius=10, alignment=ft.alignment.center),
-                ft.Row([ft.Text("Prompt Settings", size=20, weight="bold"), ft.IconButton(ft.icons.CLOSE, on_click=toggle_settings)], alignment="spaceBetween"),
+                
+                # Header
+                ft.Row([
+                    ft.Text("Prompt Settings", size=20, weight="bold"), 
+                    ft.IconButton(ft.icons.CLOSE, on_click=toggle_settings)
+                ], alignment="spaceBetween"),
+                
                 ft.Divider(color=ft.colors.GREY_800),
 
-                # --- STACK FOR "GROW UP" UI ---
-                ft.Stack(
-                    height=300, # Reserve enough height for the list to grow UP into
-                    controls=[
-                        # Layer 1: The Suggestions (Now anchored to BOTTOM, sitting on top of input)
-                        suggestion_container,
-
-                        # Layer 2: The Input Field (Anchored to BOTTOM)
-                        ft.Container(
-                            height=50, 
-                            bottom=0, left=0, right=0,
-                            content=ft.Row([prompt_field])
-                        ),
-                    ]
-                )
+                # The Scrollable Content
+                settings_content
             ]
         )
     )
@@ -156,12 +203,14 @@ def main(page: ft.Page):
     page.add(
         ft.Stack(
             controls=[
+                # Background
                 ft.InteractiveViewer(
                     min_scale=1.0, max_scale=5.0,
                     boundary_margin=ft.margin.all(0),
                     content=ft.Image(src=image_src, fit=ft.ImageFit.COVER, height=page.height, width=page.width)
                 ),
-                ft.Text("Status: Connected", size=18, weight="bold", top=40, left=20, style=ft.TextStyle(shadow=ft.BoxShadow(blur_radius=5, color=ft.colors.BLACK))),
+                
+                # Main UI Buttons (Bottom Bar)
                 ft.Container(
                     bottom=20, left=20, right=20,
                     content=ft.Row(
@@ -176,6 +225,8 @@ def main(page: ft.Page):
                         ]
                     )
                 ),
+                
+                # The Slide-up Panel
                 settings_panel
             ],
             expand=True

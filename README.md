@@ -1,2 +1,9 @@
-# MY_COMFY
-This project is used for create a custom android app that use comfyUI as backend
+# Flet app
+
+A simple Flet app.
+
+To run the app:
+
+```
+flet run [app_directory]
+```

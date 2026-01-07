@@ -27,44 +27,44 @@ def main(page: ft.Page):
     # --- UI Elements ---
 
     prompt_field = ft.TextField(
-        hint_text="Type to search prompts...",
+        hint_text="Type your prompt...",
         border_radius=15,
         bgcolor=ft.colors.BLACK38,
         filled=True,
-        multiline=False,
+        multiline=True, # Make the prompt field taller
+        min_lines=4,
+        max_lines=4,
         text_size=14,
         content_padding=15,
     )
 
-    # The list inside the expanding container
-    suggestion_list = ft.ListView(spacing=0, padding=0)
+    # The list that will show the suggestions.
+    suggestion_list = ft.Column(spacing=0, expand=True, scroll=ft.ScrollMode.AUTO)
     
-    # The Container ABOVE the prompt (Hidden by default via height=0)
-    # This acts as the "Space" that opens up.
+    # The container for the suggestions. It animates its height and aligns its
+    # content to the bottom to create the "growing upwards" effect.
     suggestion_container = ft.Container(
         content=suggestion_list,
         bgcolor=ft.colors.GREY_800,
         border_radius=10,
-        padding=0, # Remove padding when closed so it's perfectly hidden
-        
-        # Start completely collapsed
+        padding=ft.padding.only(top=5, bottom=5),
         height=0,
         opacity=0,
-        
-        # Animation Magic: The prompt below will slide down as this grows
         animate=ft.animation.Animation(300, ft.AnimationCurve.EASE_OUT),
         animate_opacity=300,
-        
-        clip_behavior=ft.ClipBehavior.HARD_EDGE # Clean cut when expanding
+        clip_behavior=ft.ClipBehavior.HARD_EDGE,
+        alignment=ft.alignment.bottom_center, # Makes the list "grow" upwards.
     )
 
     # --- Logic ---
 
     def use_suggestion(e):
-        prompt_field.value = e.control.data
-        prompt_field.update()
+        # This logic might need adjustment depending on how you want to combine hints and typed text
+        current_text = prompt_field.value
+        separator = ", " if current_text and not current_text.endswith(", ") else ""
+        prompt_field.value = current_text + separator + e.control.data
         
-        # Collapse the list (Prompt slides back UP)
+        prompt_field.update()
         suggestion_container.height = 0
         suggestion_container.opacity = 0
         suggestion_container.update()
@@ -72,41 +72,43 @@ def main(page: ft.Page):
     def on_text_change(e):
         typed_text = e.control.value.lower()
         
-        # Close if empty
         if not typed_text:
             suggestion_container.height = 0
             suggestion_container.opacity = 0
             suggestion_container.update()
             return
 
-        matches = [p for p in all_prompts if typed_text in p.lower()]
+        # Filter prompts based on the last word typed after a comma
+        last_word = typed_text.split(",")[-1].strip()
+        if not last_word:
+            suggestion_container.height = 0
+            suggestion_container.opacity = 0
+            suggestion_container.update()
+            return
 
-        # Close if no matches
+        matches = [p for p in all_prompts if last_word in p.lower()]
+
         if not matches:
             suggestion_container.height = 0
             suggestion_container.opacity = 0
             suggestion_container.update()
             return
 
-        # Populate List
         suggestion_list.controls.clear()
         for match in matches:
             suggestion_list.controls.append(
-                ft.Container(
-                    content=ft.Text(match, size=14, color=ft.colors.WHITE),
-                    padding=12,
-                    border_radius=5,
+                ft.ListTile(
+                    title=ft.Text(match, size=14, color=ft.colors.WHITE),
                     data=match,
                     on_click=use_suggestion,
-                    ink=True, 
+                    border_radius=5,
+                    ink=True,
                 )
             )
         
-        # Calculate height: 45px per item, max 200px
         list_height = len(matches) * 45 
-        if list_height > 200: list_height = 200
+        if list_height > 150: list_height = 150 # Adjust max height for new layout
         
-        # Expand the container (Pushing the prompt down)
         suggestion_container.height = list_height
         suggestion_container.opacity = 1
         suggestion_container.update()
@@ -120,36 +122,47 @@ def main(page: ft.Page):
             prompt_field.focus()
         else:
             settings_panel.offset = ft.transform.Offset(0, 1)
-            # Reset when closing
             suggestion_container.height = 0
             suggestion_container.opacity = 0
         page.update()
 
-    # --- Layout ---
+    # --- NEW, SIMPLIFIED LAYOUT ---
 
-    # The content inside the Settings Panel
-    settings_content = ft.Column(
-        scroll=ft.ScrollMode.HIDDEN,
-        expand=True,
+    # Section 1: The prompt area, now a Row with input on the left and hints on the right.
+    prompt_section = ft.Row(
+        vertical_alignment=ft.CrossAxisAlignment.START,
         controls=[
-            # 1. Label on top
-            ft.Text("Enter Prompt", weight="bold", size=16),
-            ft.Container(height=5),
-
-            # 2. The Dynamic Prompt Section
-            # Since suggestion_container is FIRST, it appears ABOVE the prompt.
-            # When it expands, it pushes the prompt (and everything below) DOWN.
+            # Left side: An expanding column for the prompt field and its suggestions
             ft.Column(
-                spacing=5,
+                expand=True,
                 controls=[
-                    suggestion_container, # The Hint List (Expands)
-                    prompt_field,         # The Input Field (Slides down)
+                    # The suggestion container appears first, so it will be on top
+                    suggestion_container,
+                    prompt_field,
                 ]
             ),
-            
-            # 3. The Rest of the Settings
-            ft.Divider(color=ft.colors.GREY_800, height=30),
-            
+            # Right side: A fixed-width container for hint words
+            ft.Container(
+                width=110,
+                padding=ft.padding.only(left=10),
+                content=ft.Column(
+                    spacing=8,
+                    controls=[
+                        ft.Text("Hints", weight="bold", color=ft.colors.GREY_500),
+                        ft.ElevatedButton(text="1girl", on_click=use_suggestion, data="1girl", height=30),
+                        ft.ElevatedButton(text="cowboy shot", on_click=use_suggestion, data="cowboy shot", height=30),
+                        ft.ElevatedButton(text="masterpiece", on_click=use_suggestion, data="masterpiece", height=30),
+                    ]
+                )
+            )
+        ]
+    )
+
+    # Section 2: The scrollable settings area.
+    scrollable_settings = ft.Column(
+        expand=True, # This makes the column take the remaining space.
+        scroll=ft.ScrollMode.HIDDEN,
+        controls=[
             ft.Text("Image Settings", weight="bold", color=ft.colors.GREY_400),
             ft.Container(
                 padding=10,
@@ -172,6 +185,7 @@ def main(page: ft.Page):
         ]
     )
 
+    # The main settings panel that slides up.
     settings_panel = ft.Container(
         height=page.height * 0.75, 
         bottom=0, left=0, right=0,
@@ -180,37 +194,37 @@ def main(page: ft.Page):
         padding=20,
         offset=ft.transform.Offset(0, 1),
         animate_offset=ft.animation.Animation(300, ft.AnimationCurve.EASE_OUT),
-        
+        clip_behavior=ft.ClipBehavior.NONE, # Allow suggestions to overflow the panel.
+        # The content is now a simple Column with a clear structure.
         content=ft.Column(
+            spacing=20,
             controls=[
-                # Drag Handle
+                # 1. The drag handle and header.
                 ft.Container(width=40, height=5, bgcolor=ft.colors.GREY_600, border_radius=10, alignment=ft.alignment.center),
-                
-                # Header
                 ft.Row([
                     ft.Text("Prompt Settings", size=20, weight="bold"), 
                     ft.IconButton(ft.icons.CLOSE, on_click=toggle_settings)
                 ], alignment="spaceBetween"),
                 
-                ft.Divider(color=ft.colors.GREY_800),
+                # 2. The fixed prompt section.
+                ft.Text("Enter Prompt", weight="bold", size=16),
+                prompt_section,
 
-                # The Scrollable Content
-                settings_content
+                # 3. The expanding, scrollable settings section.
+                scrollable_settings,
             ]
         )
     )
 
     page.add(
         ft.Stack(
+            expand=True,
             controls=[
-                # Background
                 ft.InteractiveViewer(
                     min_scale=1.0, max_scale=5.0,
                     boundary_margin=ft.margin.all(0),
                     content=ft.Image(src=image_src, fit=ft.ImageFit.COVER, height=page.height, width=page.width)
                 ),
-                
-                # Main UI Buttons (Bottom Bar)
                 ft.Container(
                     bottom=20, left=20, right=20,
                     content=ft.Row(
@@ -225,11 +239,8 @@ def main(page: ft.Page):
                         ]
                     )
                 ),
-                
-                # The Slide-up Panel
                 settings_panel
             ],
-            expand=True
         )
     )
 

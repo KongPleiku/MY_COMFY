@@ -19,8 +19,10 @@ class HomeView(ft.Stack):
         # --- 1. Initialize Services and Clients ---
         self.comfy_client = ComfyUIClient()  # ComfyUIClient instance is now sustained
         self.gen_service = GenerationService(
+            comfy_client=self.comfy_client,
             on_progress_update=self.update_progress_bar,
             on_status_update=self.update_status_widget,
+            on_image_update=self.update_image,
         )
 
         # --- 2. Initialize Components ---
@@ -39,6 +41,13 @@ class HomeView(ft.Stack):
             on_connect_click=self.handle_connect_click,
         )
 
+        self.background_image = ft.Image(
+            src=IMAGE_SRC,
+            fit=ft.ImageFit.FIT_WIDTH,
+            height=self.page.height,
+            width=self.page.width,
+        )
+
         # Focus Thief (for hiding keyboard)
         self.focus_thief = ft.IconButton(
             icon=ft.icons.CIRCLE, opacity=0, width=0, height=0
@@ -54,12 +63,7 @@ class HomeView(ft.Stack):
                 min_scale=1.0,
                 max_scale=5.0,
                 on_interaction_start=self.close_overlays,
-                content=ft.Image(
-                    src=IMAGE_SRC,
-                    fit=ft.ImageFit.COVER,
-                    height=self.page.height,
-                    width=self.page.width,
-                ),
+                content=self.background_image,
             ),
             self.status_widget,
             self.connection_indicator,
@@ -89,79 +93,11 @@ class HomeView(ft.Stack):
         self.connection_indicator.update_status(is_connected)
         self.page.update()  # Ensure UI updates are reflected
 
-    def _build_progress_bar(self):
-        return ft.Container(
-            bottom=85,
-            left=20,
-            right=20,
-            height=4,
-            bgcolor=ft.colors.GREY_900,
-            border_radius=5,
-            opacity=0,
-            animate_opacity=300,
-            content=ft.Row(
-                [
-                    ft.Container(
-                        ref=self.progress_fill_ref,
-                        width=0,
-                        height=4,
-                        border_radius=5,
-                        gradient=ft.LinearGradient(
-                            colors=[ft.colors.BLUE_600, ft.colors.CYAN_400]
-                        ),
-                        animate=ft.animation.Animation(
-                            500, ft.AnimationCurve.EASE_OUT_CUBIC
-                        ),
-                    )
-                ]
-            ),
-        )
-
-    # --- Callbacks triggered by Service ---
-
-    def update_status_widget(self, action, status, ac_color, st_color):
-        self.status_widget.update_status(action, status, ac_color, st_color)
-        if action == "Generating...":
-            self.close_overlays(None)
-
-    def update_progress_bar(self, value: float):
-        available_width = self.page.width - 40
-
-        if value <= 0:
-            self.progress_container.opacity = 0
-            threading.Timer(0.3, lambda: self._reset_fill()).start()
-        elif value >= 1.0:
-            self.progress_container.opacity = 0
-            self.progress_fill_ref.current.width = available_width
-        else:
-            self.progress_container.opacity = 1
-            self.progress_fill_ref.current.width = available_width * value
-
-        self.progress_container.update()
-        if self.progress_fill_ref.current:
-            self.progress_fill_ref.current.update()
-
-    def _reset_fill(self):
-        if self.progress_fill_ref.current:
-            self.progress_fill_ref.current.width = 0
-            self.progress_fill_ref.current.update()
-
-    def close_overlays(self, e):
-        self.focus_thief.focus()
-        self.input_bar.hide_suggestions()
-
-        if self.settings_sheet.offset.y == 0:
-            self.settings_sheet.offset = ft.transform.Offset(0, 1)
-            self.settings_sheet.update()
-
-        self.input_bar.toggle_read_only(True)
-        self.input_bar.toggle_read_only(False)
-
-    def toggle_settings(self, e):
-        if self.settings_sheet.offset.y == 0:
-            self.close_overlays(None)
-        else:
-            self.settings_sheet.open()
+    def update_image(self, image_b64: str):
+        """Callback to update the background image from the generation service."""
+        self.background_image.src = None
+        self.background_image.src_base64 = image_b64
+        self.background_image.update()
 
     def _build_progress_bar(self):
         return ft.Container(
@@ -206,10 +142,12 @@ class HomeView(ft.Stack):
             threading.Timer(0.3, lambda: self._reset_fill()).start()
         elif value >= 1.0:
             self.progress_container.opacity = 0
-            self.progress_fill_ref.current.width = available_width
+            if self.progress_fill_ref.current:
+                self.progress_fill_ref.current.width = available_width
         else:
             self.progress_container.opacity = 1
-            self.progress_fill_ref.current.width = available_width * value
+            if self.progress_fill_ref.current:
+                self.progress_fill_ref.current.width = available_width * value
 
         self.progress_container.update()
         if self.progress_fill_ref.current:

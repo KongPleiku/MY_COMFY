@@ -51,7 +51,7 @@
   },
   "7": {
     "inputs": {
-      "seed": 321888007881571,
+      "seed": 103177273547317,
       "steps": 20,
       "cfg": 8,
       "sampler_name": "euler_ancestral",
@@ -118,7 +118,7 @@
   "12": {
     "inputs": {
       "images": [
-        "9",
+        "21",
         0
       ]
     },
@@ -132,7 +132,7 @@
       "guide_size": 512,
       "guide_size_for": false,
       "max_size": 1024,
-      "seed": 1060797927156383,
+      "seed": 908965234602106,
       "steps": 20,
       "cfg": 8,
       "sampler_name": "euler",
@@ -158,8 +158,8 @@
       "tiled_encode": false,
       "tiled_decode": false,
       "image": [
-        "9",
-        0
+        "21",
+        1
       ],
       "model": [
         "1",
@@ -210,6 +210,20 @@
     "class_type": "UltralyticsDetectorProvider",
     "_meta": {
       "title": "UltralyticsDetectorProvider"
+    }
+  },
+  "21": {
+    "inputs": {
+      "select": 1,
+      "sel_mode": false,
+      "input": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "ImpactInversedSwitch",
+    "_meta": {
+      "title": "Inversed Switch (Any)"
     }
   }
 }

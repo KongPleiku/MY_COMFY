@@ -11,7 +11,9 @@ from services.generation_services import (
 )
 from services.client import ComfyUIClient
 from services.config_service import ConfigService
-
+import base64
+from PIL import Image
+import io
 
 class HomeView(ft.Stack):
     def __init__(self, page: ft.Page):
@@ -156,15 +158,57 @@ class HomeView(ft.Stack):
             self._is_connecting = False
 
     def update_image(self, image_b64: str):
-        """Callback to update the background image from the generation service."""
-        self.background_image.src = None
-        self.background_image.src_base64 = image_b64
+        # Inside the update_image(self, image_b64: str) method:
+         # 1. Decode the base64 string to binary
+        image_bytes = base64.b64decode(image_b64)
+     
+         # 2. Open the image using Pillow
+        img = Image.open(io.BytesIO(image_bytes))
+     
+         # 3. Check if rotation is needed and rotate the image object
+        current_height = img.height
+        current_width = img.width
+
+        if current_height < current_width:
+            img = img.rotate(-90, expand=True)
+   
+        # 4. Save the potentially rotated image to a new byte buffer
+        output_buffer = io.BytesIO()
+        img.save(output_buffer, format="PNG")
+   
+        # 5. Get the new base64 string
+        new_image_b64 = base64.b64encode(output_buffer.getvalue()).decode("utf-8")
+   
+        # 6. Update the UI control with the new image and its correct dimensions
+        self.background_image.rotate = None # Ensure no framework rotation is applied
+        self.background_image.src_base64 = new_image_b64
         self.background_image.update()
 
     def update_preview(self, image_b64: str):
-        """Callback to update the background image with a preview."""
-        self.background_image.src = None
-        self.background_image.src_base64 = image_b64
+        # Inside the update_image(self, image_b64: str) method:
+         # 1. Decode the base64 string to binary
+        image_bytes = base64.b64decode(image_b64)
+     
+         # 2. Open the image using Pillow
+        img = Image.open(io.BytesIO(image_bytes))
+     
+         # 3. Check if rotation is needed and rotate the image object
+        current_height = img.height
+        current_width = img.width
+
+        if current_height < current_width:
+            img = img.rotate(-90, expand=True)
+   
+        # 4. Save the potentially rotated image to a new byte buffer
+        output_buffer = io.BytesIO()
+        img.save(output_buffer, format="PNG")
+   
+        # 5. Get the new base64 string
+        new_image_b64 = base64.b64encode(output_buffer.getvalue()).decode("utf-8")
+   
+        # 6. Update the UI control with the new image and its correct dimensions
+        self.background_image.rotate = None # Ensure no framework rotation is applied
+        self.background_image.src_base64 = new_image_b64
         self.background_image.update()
 
     def _build_progress_bar(self):

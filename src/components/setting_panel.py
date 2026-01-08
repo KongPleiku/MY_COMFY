@@ -1,4 +1,4 @@
-# src/components/settings_sheet.py
+# src/components/setting_panel.py
 import flet as ft
 import random
 from services.generation_services import GenerationSetting, FaceDetailerSetting
@@ -103,11 +103,61 @@ class SettingsPanel(ft.Container):
             value=10,
             on_change=self._on_setting_change,
         )
-
+        self.fd_sampler_dropdown = ft.Dropdown(
+            label="Sampler",
+            value="euler_ancestral",
+            options=[
+                ft.dropdown.Option("euler_ancestral"),
+                ft.dropdown.Option("euler"),
+                ft.dropdown.Option("dpm++_2m_karras"),
+            ],
+            expand=True,
+            on_change=self._on_setting_change,
+        )
+        self.fd_scheduler_dropdown = ft.Dropdown(
+            label="Scheduler",
+            value="sgm_uniform",
+            options=[
+                ft.dropdown.Option("sgm_uniform"),
+                ft.dropdown.Option("normal"),
+                ft.dropdown.Option("karras"),
+                ft.dropdown.Option("simple"),
+            ],
+            expand=True,
+            on_change=self._on_setting_change,
+        )
+        self.fd_denoise_slider = ft.Slider(
+            min=0.1,
+            max=1.0,
+            divisions=9,
+            label="Denoise: {value}",
+            value=0.4,
+            on_change=self._on_setting_change,
+        )
+        self.fd_bbox_threshold_slider = ft.Slider(
+            min=0.1,
+            max=1.0,
+            divisions=9,
+            label="BBox Threshold: {value}",
+            value=0.5,
+            on_change=self._on_setting_change,
+        )
+        self.fd_bbox_crop_factor_slider = ft.Slider(
+            min=1.0,
+            max=4.0,
+            divisions=30,
+            label="BBox Crop Factor: {value}",
+            value=2,
+            on_change=self._on_setting_change,
+        )
         self.face_detailer_settings_container = ft.Column(
             controls=[
                 self.fd_steps_slider,
                 self.fd_cfg_slider,
+                ft.Row([self.fd_sampler_dropdown, self.fd_scheduler_dropdown]),
+                self.fd_denoise_slider,
+                self.fd_bbox_threshold_slider,
+                self.fd_bbox_crop_factor_slider,
             ],
             visible=False,
             animate_opacity=300,
@@ -224,6 +274,9 @@ class SettingsPanel(ft.Container):
 
     def is_seed_fixed(self):
         return self.fixed_seed_checkbox.value
+    
+    def _clamp(self, value, min_val, max_val):
+        return max(min_val, min(value, max_val))
 
     def set_settings(
         self,
@@ -232,27 +285,36 @@ class SettingsPanel(ft.Container):
     ):
         self._is_setting_from_config = True
         try:
+            # General settings
             self.model_field.value = gen_settings.get("model", "WAI_ANI_Q8_0.gguf")
             self.seed_field.value = str(gen_settings.get("seed", "1"))
             self.width_field.value = str(gen_settings.get("width", "1024"))
             self.height_field.value = str(gen_settings.get("height", "1024"))
-            self.steps_slider.value = int(gen_settings.get("steps", 20))
-            self.cfg_slider.value = int(gen_settings.get("cfg", 4))
-            self.sampler_dropdown.value = gen_settings.get(
-                "sampler_name", "euler_ancestral"
-            )
+            self.sampler_dropdown.value = gen_settings.get("sampler_name", "euler_ancestral")
             self.scheduler_dropdown.value = gen_settings.get("scheduler", "sgm_uniform")
 
+            # Clamp slider values
+            self.steps_slider.value = self._clamp(int(gen_settings.get("steps", 20)), self.steps_slider.min, self.steps_slider.max)
+            self.cfg_slider.value = self._clamp(int(gen_settings.get("cfg", 4)), self.cfg_slider.min, self.cfg_slider.max)
+
+            # Face detailer switch
             use_face_detailer = gen_settings.get("Face_detailer_switch", 1) == 2
             self.face_detailer_switch.value = use_face_detailer
             self.face_detailer_settings_container.visible = use_face_detailer
-            self.face_detailer_settings_container.opacity = (
-                1 if use_face_detailer else 0
-            )
+            self.face_detailer_settings_container.opacity = 1 if use_face_detailer else 0
 
+            # Face detailer settings
             if face_detailer_setting:
-                self.fd_steps_slider.value = int(face_detailer_setting.get("steps", 20))
-                self.fd_cfg_slider.value = int(face_detailer_setting.get("cfg", 10))
+                self.fd_sampler_dropdown.value = face_detailer_setting.get("sampler_name", "euler_ancestral")
+                self.fd_scheduler_dropdown.value = face_detailer_setting.get("scheduler", "sgm_uniform")
+
+                # Clamp face detailer slider values
+                self.fd_steps_slider.value = self._clamp(int(face_detailer_setting.get("steps", 20)), self.fd_steps_slider.min, self.fd_steps_slider.max)
+                self.fd_cfg_slider.value = self._clamp(int(face_detailer_setting.get("cfg", 10)), self.fd_cfg_slider.min, self.fd_cfg_slider.max)
+                self.fd_denoise_slider.value = self._clamp(float(face_detailer_setting.get("denoise", 0.4)), self.fd_denoise_slider.min, self.fd_denoise_slider.max)
+                self.fd_bbox_threshold_slider.value = self._clamp(float(face_detailer_setting.get("bbox_threshold", 0.5)), self.fd_bbox_threshold_slider.min, self.fd_bbox_threshold_slider.max)
+                self.fd_bbox_crop_factor_slider.value = self._clamp(float(face_detailer_setting.get("bbox_crop_factor", 2)), self.fd_bbox_crop_factor_slider.min, self.fd_bbox_crop_factor_slider.max)
+            
             self.update()
         finally:
             self._is_setting_from_config = False
@@ -277,11 +339,16 @@ class SettingsPanel(ft.Container):
             "Face_detailer_switch": 2 if self.face_detailer_switch.value else 1,
         }
 
-        face_detailer_settings = None
+        face_detailer_settings: FaceDetailerSetting | None = None
         if self.face_detailer_switch.value:
             face_detailer_settings = {
                 "steps": int(self.fd_steps_slider.value),
                 "cfg": int(self.fd_cfg_slider.value),
+                "sampler_name": self.fd_sampler_dropdown.value,
+                "scheduler": self.fd_scheduler_dropdown.value,
+                "denoise": float(self.fd_denoise_slider.value),
+                "bbox_threshold": float(self.fd_bbox_threshold_slider.value),
+                "bbox_crop_factor": float(self.fd_bbox_crop_factor_slider.value),
             }
 
         return gen_settings, face_detailer_settings

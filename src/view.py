@@ -22,6 +22,9 @@ class HomeView(ft.Stack):
         self.expand = True
         self._is_connecting = False
 
+        self.current_height = 0
+        self.current_width = 0
+
         # --- 1. Initialize Services and Clients ---
         self.config_service = ConfigService()
         self.comfy_client = ComfyUIClient()  # ComfyUIClient instance is now sustained
@@ -166,8 +169,10 @@ class HomeView(ft.Stack):
         img = Image.open(io.BytesIO(image_bytes))
      
          # 3. Check if rotation is needed and rotate the image object
-        current_height = img.height
-        current_width = img.width
+        config = self.config_service.load_config()
+
+        current_height = config["generation_setting"]["height"]
+        current_width = config["generation_setting"]["width"]
 
         if current_height < current_width:
             img = img.rotate(-90, expand=True)
@@ -193,8 +198,10 @@ class HomeView(ft.Stack):
         img = Image.open(io.BytesIO(image_bytes))
      
          # 3. Check if rotation is needed and rotate the image object
-        current_height = img.height
-        current_width = img.width
+        config = self.config_service.load_config()
+
+        current_height = config["generation_setting"]["height"]
+        current_width = config["generation_setting"]["width"]
 
         if current_height < current_width:
             img = img.rotate(-90, expand=True)

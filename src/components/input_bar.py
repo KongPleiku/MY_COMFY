@@ -88,7 +88,6 @@ class InputBar(ft.Container):
 
     def clear_prompt(self):
         """Clears the prompt field."""
-        self.prompt_field.value = ""
         self.update()
 
     def set_prompt(self, value: str):

@@ -111,7 +111,7 @@ class HomeView(ft.Stack):
         # For now, we'll create default settings and just change the prompt.
         # Later, these can be populated from the UI.
         generation_setting, face_detailer_setting = self.settings_sheet.get_settings()
-        generation_setting.positive_prompt = prompt
+        generation_setting["positive_prompt"] = prompt
 
         self.gen_service.start_generation(
             setting=generation_setting,

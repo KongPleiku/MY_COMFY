@@ -224,17 +224,18 @@ class SettingsPanel(ft.Container):
         self.update()
 
     def get_settings(self) -> tuple[GenerationSetting, FaceDetailerSetting | None]:
-        gen_settings = GenerationSetting(
-            model=self.model_field.value,
-            seed=int(self.seed_field.value),
-            steps=int(self.steps_slider.value),
-            cfg=int(self.cfg_slider.value),
-            sampler_name=self.sampler_dropdown.value,
-            scheduler=self.scheduler_dropdown.value,
-            width=int(self.width_field.value),
-            height=int(self.height_field.value),
-            Face_detailer_switch=2 if self.face_detailer_switch.value else 1,
-        )
+        gen_settings: GenerationSetting = {
+            "model": self.model_field.value,
+            "positive_prompt": "",  # This will be set in the view
+            "seed": int(self.seed_field.value),
+            "steps": int(self.steps_slider.value),
+            "cfg": int(self.cfg_slider.value),
+            "sampler_name": self.sampler_dropdown.value,
+            "scheduler": self.scheduler_dropdown.value,
+            "width": int(self.width_field.value),
+            "height": int(self.height_field.value),
+            "Face_detailer_switch": 2 if self.face_detailer_switch.value else 1,
+        }
 
         face_detailer_settings = None
         if self.face_detailer_switch.value:

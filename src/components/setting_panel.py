@@ -1,5 +1,6 @@
 # src/components/settings_sheet.py
 import flet as ft
+import random
 from services.generation_services import GenerationSetting, FaceDetailerSetting
 
 
@@ -28,6 +29,15 @@ class SettingsPanel(ft.Container):
         )
         self.height_field = ft.TextField(
             label="Height", value="1024", expand=True, on_change=self._on_setting_change
+        )
+
+        self.fixed_seed_checkbox = ft.Checkbox(
+            label="Fixed", value=True, on_change=self._on_setting_change
+        )
+        self.randomize_button = ft.IconButton(
+            icon=ft.icons.CASINO_OUTLINED,
+            tooltip="Randomize Seed",
+            on_click=self._randomize_seed,
         )
 
         self.steps_slider = ft.Slider(
@@ -105,7 +115,14 @@ class SettingsPanel(ft.Container):
         self.sdxl_tab = ft.Column(
             controls=[
                 self.model_field,
-                ft.Row([self.seed_field]),
+                ft.Row(
+                    [
+                        self.seed_field,
+                        self.fixed_seed_checkbox,
+                        self.randomize_button,
+                    ],
+                    alignment=ft.MainAxisAlignment.START,
+                ),
                 ft.Row([self.width_field, self.height_field]),
                 ft.Text("Steps"),
                 self.steps_slider,
@@ -197,6 +214,15 @@ class SettingsPanel(ft.Container):
         if self.on_change:
             self.on_change()
 
+    def _randomize_seed(self, e):
+        self.seed_field.value = str(random.randint(0, 2**32 - 1))
+        self.update()
+        if self.on_change:
+            self.on_change()
+
+    def is_seed_fixed(self):
+        return self.fixed_seed_checkbox.value
+
     def set_settings(
         self,
         gen_settings: GenerationSetting,
@@ -224,10 +250,16 @@ class SettingsPanel(ft.Container):
         self.update()
 
     def get_settings(self) -> tuple[GenerationSetting, FaceDetailerSetting | None]:
+        seed = int(self.seed_field.value)
+        if not self.fixed_seed_checkbox.value:
+            seed = random.randint(0, 2**32 - 1)
+            self.seed_field.value = str(seed)
+            self.update()
+
         gen_settings: GenerationSetting = {
             "model": self.model_field.value,
             "positive_prompt": "",  # This will be set in the view
-            "seed": int(self.seed_field.value),
+            "seed": seed,
             "steps": int(self.steps_slider.value),
             "cfg": int(self.cfg_slider.value),
             "sampler_name": self.sampler_dropdown.value,
@@ -239,9 +271,9 @@ class SettingsPanel(ft.Container):
 
         face_detailer_settings = None
         if self.face_detailer_switch.value:
-            face_detailer_settings = FaceDetailerSetting(
-                steps=int(self.fd_steps_slider.value),
-                cfg=int(self.fd_cfg_slider.value),
-            )
+            face_detailer_settings = {
+                "steps": int(self.fd_steps_slider.value),
+                "cfg": int(self.fd_cfg_slider.value),
+            }
 
         return gen_settings, face_detailer_settings

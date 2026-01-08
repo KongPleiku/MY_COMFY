@@ -52,6 +52,7 @@ class GenerationService:
         self.on_image_update = on_image_update  # Callback to update main image
         self.on_preview_update = on_preview_update  # Callback to update preview image
         self._is_generating = False
+        self._prompt_id = None
         self._model_loader_node_id = "1"
         self._positive_prompt_node_id = "4"
         self._k_sampler_node_id = "7"
@@ -97,6 +98,10 @@ class GenerationService:
             return
         print("Service: Generation cancelled by user.")
         self._is_generating = False
+        self.comfy_client.interrupt_generation()
+        if self._prompt_id:
+            # Clear the history for the cancelled prompt
+            self.comfy_client.get_history(self._prompt_id)
         self.on_status_update("Cancelled", "Ready", "WHITE70", "GREEN_400")
         self.on_progress_update(0.0)
 
@@ -145,9 +150,9 @@ class GenerationService:
             if not response or "prompt_id" not in response:
                 raise Exception("Failed to queue prompt or invalid response.")
 
-            prompt_id = response["prompt_id"]
+            self._prompt_id = response["prompt_id"]
             self.on_status_update(
-                "Generating...", f"ID: {prompt_id[:8]}", "BLUE_200", "ORANGE_400"
+                "Generating...", f"ID: {self._prompt_id[:8]}", "BLUE_200", "ORANGE_400"
             )
 
             # 4. Listen to WebSocket for completion and image
@@ -173,7 +178,10 @@ class GenerationService:
                         self._handle_image_data(data["output"]["images"])
                         break
 
-                    if data.get("prompt_id") == prompt_id and data.get("node") is None:
+                    if (
+                        data.get("prompt_id") == self._prompt_id
+                        and data.get("node") is None
+                    ):
                         break
 
             if not self._is_generating:
@@ -187,6 +195,7 @@ class GenerationService:
             self.on_status_update("Error", "Failed", "RED_500", "RED_500")
         finally:
             self._is_generating = False
+            self._prompt_id = None
 
     def _handle_preview_image(self, image_bytes: bytes):
         """

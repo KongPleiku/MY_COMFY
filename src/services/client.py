@@ -153,6 +153,21 @@ class ComfyUIClient:
                 print(f"Error receiving WebSocket message: {e}")
         return None
 
+    def interrupt_generation(self):
+        """
+        Sends an interrupt request to the ComfyUI server.
+        """
+        if not self.is_connected():
+            print("Not connected to ComfyUI. Cannot interrupt.")
+            return
+
+        try:
+            response = requests.post(f"{self._api_url}/interrupt")
+            response.raise_for_status()
+            print("Interrupt request sent successfully.")
+        except requests.exceptions.RequestException as e:
+            print(f"Error sending interrupt request: {e}")
+
     def close_ws_connection(self):
         """
         Closes the WebSocket connection.

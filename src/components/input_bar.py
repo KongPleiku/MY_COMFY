@@ -91,23 +91,32 @@ class InputBar(ft.Container):
         self.update()
 
     def _on_text_change(self, e):
-        typed = e.control.value.lower()
-        if not typed.strip():
+        typed_text = e.control.value
+        if not typed_text.strip():
             self.hide_suggestions()
             return
 
-        matches = [p for p in ALL_PROMPTS if typed in p.lower()]
+        parts = typed_text.split(",")
+        current_word = parts[-1].strip().lower()
+
+        if not current_word:
+            self.hide_suggestions()
+            return
+
+        matches = [p for p in ALL_PROMPTS if p.lower().startswith(current_word)]
+
         if not matches:
             self.hide_suggestions()
             return
 
+        self._update_suggestions(matches[:10])
+
+    def _update_suggestions(self, matches):
         self.suggestion_list.controls = [
-            ft.Container(
-                content=ft.Text(m, color=ft.colors.WHITE),
-                padding=15,
+            ft.ListTile(
+                title=ft.Text(m, color=ft.colors.WHITE),
                 data=m,
                 on_click=self._use_suggestion,
-                ink=True,
             )
             for m in matches
         ]
@@ -118,7 +127,14 @@ class InputBar(ft.Container):
         self.suggestion_list.update()
 
     def _use_suggestion(self, e):
-        self.prompt_field.value = e.control.data
+        suggestion = e.control.data
+        current_text = self.prompt_field.value
+        parts = current_text.split(",")
+
+        # Replace the last part with the suggestion
+        parts[-1] = f" {suggestion}" if len(parts) > 1 else suggestion
+
+        self.prompt_field.value = ",".join(parts) + ", "
         self.prompt_field.update()
         self.hide_suggestions()
 

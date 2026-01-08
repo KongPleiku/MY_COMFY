@@ -8,10 +8,9 @@ from components.setting_panel import SettingsPanel
 from components.input_bar import InputBar
 from services.generation_services import (
     GenerationService,
-    GenerationSetting,
-    FaceDetailerSetting,
 )
 from services.client import ComfyUIClient
+from services.config_service import ConfigService
 
 
 class HomeView(ft.Stack):
@@ -21,6 +20,7 @@ class HomeView(ft.Stack):
         self.expand = True
 
         # --- 1. Initialize Services and Clients ---
+        self.config_service = ConfigService()
         self.comfy_client = ComfyUIClient()  # ComfyUIClient instance is now sustained
         self.gen_service = GenerationService(
             comfy_client=self.comfy_client,
@@ -38,12 +38,14 @@ class HomeView(ft.Stack):
             on_send=self.start_generation_from_input,
             on_cancel=lambda e: self.gen_service.cancel_generation(),
             on_settings_click=self.toggle_settings,
+            on_change=self._save_config,
         )
 
         self.settings_sheet = SettingsPanel(
             page_height=page.height,
             on_close=lambda: self.close_overlays(None),
             on_connect_click=self.handle_connect_click,
+            on_change=self._save_config,
         )
 
         self.background_image = ft.Image(
@@ -78,11 +80,34 @@ class HomeView(ft.Stack):
             self.focus_thief,
         ]
 
+    def _load_config(self):
+        config = self.config_service.load_config()
+        if config:
+            gen_settings = config.get("generation_setting")
+            face_detailer_setting = config.get("face_detailer_setting")
+            prompt = config.get("prompt")
+
+            if gen_settings:
+                self.settings_sheet.set_settings(gen_settings, face_detailer_setting)
+            if prompt:
+                self.input_bar.set_prompt(prompt)
+
+    def _save_config(self):
+        gen_settings, face_detailer_setting = self.settings_sheet.get_settings()
+        prompt = self.input_bar.prompt_field.value
+        config = {
+            "generation_setting": gen_settings,
+            "face_detailer_setting": face_detailer_setting,
+            "prompt": prompt,
+        }
+        self.config_service.save_config(config)
+
     def start_generation_from_input(self, prompt: str):
         """
         Called by the InputBar's send button.
         Creates settings objects and starts the generation.
         """
+        self._save_config()
         # For now, we'll create default settings and just change the prompt.
         # Later, these can be populated from the UI.
         generation_setting, face_detailer_setting = self.settings_sheet.get_settings()

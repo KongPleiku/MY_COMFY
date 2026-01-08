@@ -4,11 +4,12 @@ from utils.data import ALL_PROMPTS
 
 
 class InputBar(ft.Container):
-    def __init__(self, on_send, on_cancel, on_settings_click):
+    def __init__(self, on_send, on_cancel, on_settings_click, on_change=None):
         super().__init__()
         self.on_send = on_send
         self.on_cancel = on_cancel
         self.on_settings_click = on_settings_click
+        self.on_change = on_change
 
         # --- Controls ---
         self.prompt_field = ft.TextField(
@@ -90,7 +91,14 @@ class InputBar(ft.Container):
         self.prompt_field.value = ""
         self.update()
 
+    def set_prompt(self, value: str):
+        """Sets the prompt field's value."""
+        self.prompt_field.value = value
+        self.update()
+
     def _on_text_change(self, e):
+        if self.on_change:
+            self.on_change()
         typed_text = e.control.value
         if not typed_text.strip():
             self.hide_suggestions()

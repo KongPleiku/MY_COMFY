@@ -4,37 +4,27 @@ import json
 import os
 import requests
 import base64
-from dataclasses import dataclass, field
+from typing import TypedDict, Optional, Literal
 
 
-@dataclass
-class FaceDetailerSetting:
-    steps: int = field(default=20)
-    cfg: int = field(default=10)
+class FaceDetailerSetting(TypedDict):
+    steps: int
+    cfg: int
 
 
-@dataclass
-class GenerationSetting:
-    model: str = field(default="WAI_ANI_Q8_0.gguf")
-
-    # Prompting
-    positive_prompt: str = field(default="")
-
-    # Sampler Setting
-    seed: int = field(default=1)
-    steps: int = field(default=20)
-    cfg: int = field(default=4)
-    sampler_name: str = field(default="euler_ancestral")
-    scheduler: str = field(default="sgm_uniform")
-
-    # Image size
-    width: int = field(default=1024)
-    height: int = field(default=1024)
-
-    # Optional
-    Face_detailer_switch: int = field(
-        default=1
-    )  # No face detailer: 1, use face detailer: 2
+class GenerationSetting(TypedDict):
+    model: str
+    positive_prompt: str
+    seed: int
+    steps: int
+    cfg: int
+    sampler_name: str
+    scheduler: str
+    width: int
+    height: int
+    Face_detailer_switch: Literal[
+        1, 2
+    ]  # 1 for no face detailer, 2 for use face detailer
 
 
 class GenerationService:
@@ -78,7 +68,8 @@ class GenerationService:
                 self.on_status_update("Error", "Not Connected", "RED_500", "RED_500")
                 return
 
-        print(f"Service: Starting generation for '{setting.positive_prompt}'")
+        setting_log = setting.get("positive_prompt")
+        print(f"Service: Starting generation for '{setting_log}'")
         self._is_generating = True
 
         self.on_status_update("Queuing...", "Sending prompt", "BLUE_200", "ORANGE_400")
@@ -117,33 +108,35 @@ class GenerationService:
                 workflow = json.load(f)
 
             # 2. Modify the workflow with GenerationSetting
-            workflow[self._model_loader_node_id]["inputs"]["unet_name"] = setting.model
+            workflow[self._model_loader_node_id]["inputs"]["unet_name"] = setting.get(
+                "model"
+            )
 
-            workflow[self._positive_prompt_node_id]["inputs"][
-                "text"
-            ] = setting.positive_prompt
+            workflow[self._positive_prompt_node_id]["inputs"]["text"] = setting.get(
+                "positive_prompt"
+            )
 
             ksampler = workflow[self._k_sampler_node_id]["inputs"]
-            ksampler["seed"] = setting.seed
-            ksampler["steps"] = setting.steps
-            ksampler["cfg"] = setting.cfg
-            ksampler["sampler_name"] = setting.sampler_name
-            ksampler["scheduler"] = setting.scheduler
+            ksampler["seed"] = setting.get("seed")
+            ksampler["steps"] = setting.get("steps")
+            ksampler["cfg"] = setting.get("cfg")
+            ksampler["sampler_name"] = setting.get("sampler_name")
+            ksampler["scheduler"] = setting.get("scheduler")
             # Note: "preview_image" should be a string "enable" not a boolean
             ksampler["preview_image"] = "enable"
 
             latent_image = workflow[self._empty_latent_image_node_id]["inputs"]
-            latent_image["width"] = setting.width
-            latent_image["height"] = setting.height
+            latent_image["width"] = setting.get("width")
+            latent_image["height"] = setting.get("height")
 
             if face_detailer_setting:
                 face_detailer = workflow[self._face_detailer_node_id]["inputs"]
-                face_detailer["steps"] = face_detailer_setting.steps
-                face_detailer["cfg"] = face_detailer_setting.cfg
+                face_detailer["steps"] = face_detailer_setting.get("steps")
+                face_detailer["cfg"] = face_detailer_setting.get("cfg")
 
             workflow[self._face_detailer_switch_node_id]["inputs"][
                 "select"
-            ] = setting.Face_detailer_switch
+            ] = setting.get("Face_detailer_switch")
 
             # 3. Queue the prompt
             response = self.comfy_client.queue_prompt(workflow)

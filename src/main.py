@@ -13,6 +13,7 @@ def main(page: ft.Page):
 
     # Add it to the page
     page.add(home)
+    home._load_config()
 
     # Ensure ComfyUIClient's WebSocket connection is closed on app disconnect
     def on_disconnect(e):

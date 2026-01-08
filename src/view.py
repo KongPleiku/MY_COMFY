@@ -150,8 +150,15 @@ class HomeView(ft.Stack):
 
     def update_status_widget(self, action, status, ac_color, st_color):
         self.status_widget.update_status(action, status, ac_color, st_color)
+
+        is_generating = action in ["Queuing...", "Generating...", "Downloading..."]
+        self.input_bar.set_input_enabled(not is_generating)
+
         if action == "Generating...":
             self.close_overlays(None)
+        elif action == "Finished":
+            # Optionally clear prompt on finish
+            self.input_bar.clear_prompt()
 
     def update_progress_bar(self, value: float):
         available_width = self.page.width - 40

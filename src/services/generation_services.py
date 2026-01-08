@@ -61,10 +61,15 @@ class GenerationService:
         if self._is_generating:
             return
 
-        if not self.comfy_client or not self.comfy_client.is_connected():
-            print("Service Error: ComfyUI client is not connected.")
-            self.on_status_update("Error", "Not Connected", "RED_500", "RED_500")
-            return
+        if not self.comfy_client.is_connected():
+            print("Client not connected, attempting to reconnect...")
+            self.on_status_update(
+                "Connecting...", "Re-establishing link", "BLUE_200", "ORANGE_400"
+            )
+            if not self.comfy_client.connect():
+                print("Service Error: Failed to reconnect to ComfyUI.")
+                self.on_status_update("Error", "Not Connected", "RED_500", "RED_500")
+                return
 
         print(f"Service: Starting generation for '{setting.positive_prompt}'")
         self._is_generating = True
@@ -155,6 +160,8 @@ class GenerationService:
                         )
                         # This will handle fetching the image and updating the UI via callback
                         self._handle_image_data(data["output"]["images"])
+                        # Once we have the image, we can break the loop
+                        break
 
                     if data.get("prompt_id") == prompt_id and data.get("node") is None:
                         # End of execution for our prompt

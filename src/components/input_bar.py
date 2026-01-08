@@ -2,6 +2,7 @@
 import flet as ft
 from utils.data import ALL_PROMPTS
 
+
 class InputBar(ft.Container):
     def __init__(self, on_send, on_cancel, on_settings_click):
         super().__init__()
@@ -13,14 +14,15 @@ class InputBar(ft.Container):
         self.prompt_field = ft.TextField(
             hint_text="Describe your image...",
             border_radius=25,
-            bgcolor=ft.colors.BLACK54, 
+            bgcolor=ft.colors.BLACK54,
             filled=True,
             multiline=True,
-            min_lines=1, max_lines=3,
+            min_lines=1,
+            max_lines=3,
             content_padding=ft.padding.symmetric(horizontal=20, vertical=10),
             expand=True,
             border_color=ft.colors.TRANSPARENT,
-            on_change=self._on_text_change
+            on_change=self._on_text_change,
         )
 
         self.suggestion_list = ft.ListView(spacing=0, padding=0)
@@ -28,10 +30,17 @@ class InputBar(ft.Container):
             content=self.suggestion_list,
             bgcolor=ft.colors.GREY_900,
             border_radius=15,
-            height=0, opacity=0,
+            height=0,
+            opacity=0,
             animate=ft.animation.Animation(200, ft.AnimationCurve.EASE_OUT),
             animate_opacity=200,
-            margin=ft.margin.only(bottom=10, left=10, right=10)
+            margin=ft.margin.only(bottom=10, left=10, right=10),
+        )
+        self.send_button = ft.IconButton(
+            ft.icons.ARROW_UPWARD,
+            bgcolor=ft.colors.BLUE_700,
+            icon_color=ft.colors.WHITE,
+            on_click=lambda e: self.on_send(self.prompt_field.value),
         )
 
         # --- Layout ---
@@ -40,26 +49,46 @@ class InputBar(ft.Container):
         self.right = 0
         self.gradient = ft.LinearGradient(
             colors=[ft.colors.TRANSPARENT, ft.colors.BLACK87],
-            stops=[0.0, 0.3], begin=ft.alignment.top_center, end=ft.alignment.bottom_center
+            stops=[0.0, 0.3],
+            begin=ft.alignment.top_center,
+            end=ft.alignment.bottom_center,
         )
         self.padding = ft.padding.only(left=10, right=10, bottom=10, top=20)
-        
+
         self.content = ft.Column(
             alignment=ft.MainAxisAlignment.END,
             controls=[
-                self.suggestion_container, 
+                self.suggestion_container,
                 ft.Row(
                     controls=[
-                        ft.IconButton(ft.icons.SETTINGS, icon_color=ft.colors.GREY_400, on_click=lambda e: self.on_settings_click(e)), 
-                        self.prompt_field,    
-                        ft.IconButton(ft.icons.CLOSE, icon_color=ft.colors.RED_400, on_click=lambda e: self.on_cancel(e)),   
-                        ft.IconButton(ft.icons.ARROW_UPWARD, bgcolor=ft.colors.BLUE_700, icon_color=ft.colors.WHITE, on_click=lambda e: self.on_send(self.prompt_field.value))      
+                        ft.IconButton(
+                            ft.icons.SETTINGS,
+                            icon_color=ft.colors.GREY_400,
+                            on_click=lambda e: self.on_settings_click(e),
+                        ),
+                        self.prompt_field,
+                        ft.IconButton(
+                            ft.icons.CLOSE,
+                            icon_color=ft.colors.RED_400,
+                            on_click=lambda e: self.on_cancel(e),
+                        ),
+                        self.send_button,
                     ],
                     alignment=ft.MainAxisAlignment.CENTER,
-                    vertical_alignment=ft.CrossAxisAlignment.END
-                )
-            ]
+                    vertical_alignment=ft.CrossAxisAlignment.END,
+                ),
+            ],
         )
+
+    def set_input_enabled(self, enabled: bool):
+        """Enable or disable the send button."""
+        self.send_button.disabled = not enabled
+        self.update()
+
+    def clear_prompt(self):
+        """Clears the prompt field."""
+        self.prompt_field.value = ""
+        self.update()
 
     def _on_text_change(self, e):
         typed = e.control.value.lower()
@@ -78,10 +107,11 @@ class InputBar(ft.Container):
                 padding=15,
                 data=m,
                 on_click=self._use_suggestion,
-                ink=True
-            ) for m in matches
+                ink=True,
+            )
+            for m in matches
         ]
-        
+
         self.suggestion_container.height = min(len(matches) * 50, 200)
         self.suggestion_container.opacity = 1
         self.suggestion_container.update()

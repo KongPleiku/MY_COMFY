@@ -152,9 +152,9 @@ class HomeView(ft.Stack):
 
     def _build_progress_bar(self):
         return ft.Container(
-            bottom=85,
-            left=20,
-            right=20,
+            bottom=0,
+            left=0,
+            right=0,
             height=4,
             bgcolor=ft.colors.GREY_900,
             border_radius=5,
@@ -193,7 +193,7 @@ class HomeView(ft.Stack):
             self.input_bar.clear_prompt()
 
     def update_progress_bar(self, value: float):
-        available_width = self.page.width - 40
+        available_width = self.page.width
 
         if value <= 0:
             self.progress_container.opacity = 0

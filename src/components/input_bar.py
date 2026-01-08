@@ -75,7 +75,6 @@ class InputBar(ft.Container):
                         ),
                         self.send_button,
                     ],
-                    alignment=ft.MainAxisAlignment.CENTER,
                     vertical_alignment=ft.CrossAxisAlignment.END,
                 ),
             ],

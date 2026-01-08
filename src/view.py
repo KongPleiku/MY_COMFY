@@ -18,6 +18,7 @@ class HomeView(ft.Stack):
         super().__init__()
         self.page = page
         self.expand = True
+        self._is_connecting = False
 
         # --- 1. Initialize Services and Clients ---
         self.config_service = ConfigService()
@@ -80,25 +81,32 @@ class HomeView(ft.Stack):
             self.focus_thief,
         ]
 
-    def _load_config(self):
+    def did_mount(self):
+        self._load_config_and_connect()
+
+    def _load_config_and_connect(self):
         config = self.config_service.load_config()
         if config:
             gen_settings = config.get("generation_setting")
             face_detailer_setting = config.get("face_detailer_setting")
             prompt = config.get("prompt")
+            connection_url = config.get("connection_url")
 
             if gen_settings:
                 self.settings_sheet.set_settings(gen_settings, face_detailer_setting)
             if prompt:
                 self.input_bar.set_prompt(prompt)
+            if connection_url:
+                self.handle_connect_click(connection_url)
 
-    def _save_config(self):
+    def _save_config(self, e=None):
         gen_settings, face_detailer_setting = self.settings_sheet.get_settings()
         prompt = self.input_bar.prompt_field.value
         config = {
             "generation_setting": gen_settings,
             "face_detailer_setting": face_detailer_setting,
             "prompt": prompt,
+            "connection_url": self.comfy_client.api_url,
         }
         self.config_service.save_config(config)
 
@@ -120,23 +128,32 @@ class HomeView(ft.Stack):
 
     def handle_connect_click(self, url: str):
         """Starts the connection process in a background thread."""
+        if self._is_connecting:
+            return
+        self._is_connecting = True
         print(f"Attempting to connect to {url}...")
         thread = threading.Thread(target=self._connect_worker, args=(url,))
         thread.start()
 
     def _connect_worker(self, url: str):
         """Connects to ComfyUI and updates status (runs in a thread)."""
-        self.comfy_client.set_api_url(url)  # Update the sustained client's URL
-        is_connected = self.comfy_client.connect()  # Connect using the sustained client
+        try:
+            self.comfy_client.set_api_url(url)  # Update the sustained client's URL
+            is_connected = (
+                self.comfy_client.connect()
+            )  # Connect using the sustained client
 
-        if is_connected:
-            print("Successfully connected to ComfyUI.")
-        else:
-            print("Failed to connect to ComfyUI.")
+            if is_connected:
+                print("Successfully connected to ComfyUI.")
+                self._save_config()
+            else:
+                print("Failed to connect to ComfyUI.")
 
-        # Update the UI on the main thread
-        self.connection_indicator.update_status(is_connected)
-        self.page.update()  # Ensure UI updates are reflected
+            # Update the UI on the main thread
+            self.connection_indicator.update_status(is_connected)
+            self.page.update()  # Ensure UI updates are reflected
+        finally:
+            self._is_connecting = False
 
     def update_image(self, image_b64: str):
         """Callback to update the background image from the generation service."""

@@ -10,6 +10,7 @@ class AppConfig(TypedDict):
     generation_setting: GenerationSetting
     face_detailer_setting: Optional[FaceDetailerSetting]
     prompt: str
+    connection_url: Optional[str]
 
 
 class ConfigService:

@@ -10,6 +10,7 @@ class SettingsPanel(ft.Container):
         self.on_close_callback = on_close
         self.on_connect_click = on_connect_click
         self.on_change = on_change
+        self._is_setting_from_config = False
 
         self.url_field = ft.TextField(
             label="Server URL",
@@ -114,6 +115,7 @@ class SettingsPanel(ft.Container):
 
         self.sdxl_tab = ft.Column(
             controls=[
+                ft.Container(height=10),
                 self.model_field,
                 ft.Row(
                     [
@@ -211,7 +213,7 @@ class SettingsPanel(ft.Container):
         self.update()
 
     def _on_setting_change(self, e):
-        if self.on_change:
+        if not self._is_setting_from_config and self.on_change:
             self.on_change()
 
     def _randomize_seed(self, e):
@@ -228,26 +230,32 @@ class SettingsPanel(ft.Container):
         gen_settings: GenerationSetting,
         face_detailer_setting: FaceDetailerSetting | None,
     ):
-        self.model_field.value = gen_settings.get("model", "WAI_ANI_Q8_0.gguf")
-        self.seed_field.value = str(gen_settings.get("seed", "1"))
-        self.width_field.value = str(gen_settings.get("width", "1024"))
-        self.height_field.value = str(gen_settings.get("height", "1024"))
-        self.steps_slider.value = int(gen_settings.get("steps", 20))
-        self.cfg_slider.value = int(gen_settings.get("cfg", 4))
-        self.sampler_dropdown.value = gen_settings.get(
-            "sampler_name", "euler_ancestral"
-        )
-        self.scheduler_dropdown.value = gen_settings.get("scheduler", "sgm_uniform")
+        self._is_setting_from_config = True
+        try:
+            self.model_field.value = gen_settings.get("model", "WAI_ANI_Q8_0.gguf")
+            self.seed_field.value = str(gen_settings.get("seed", "1"))
+            self.width_field.value = str(gen_settings.get("width", "1024"))
+            self.height_field.value = str(gen_settings.get("height", "1024"))
+            self.steps_slider.value = int(gen_settings.get("steps", 20))
+            self.cfg_slider.value = int(gen_settings.get("cfg", 4))
+            self.sampler_dropdown.value = gen_settings.get(
+                "sampler_name", "euler_ancestral"
+            )
+            self.scheduler_dropdown.value = gen_settings.get("scheduler", "sgm_uniform")
 
-        use_face_detailer = gen_settings.get("Face_detailer_switch", 1) == 2
-        self.face_detailer_switch.value = use_face_detailer
-        self.face_detailer_settings_container.visible = use_face_detailer
-        self.face_detailer_settings_container.opacity = 1 if use_face_detailer else 0
+            use_face_detailer = gen_settings.get("Face_detailer_switch", 1) == 2
+            self.face_detailer_switch.value = use_face_detailer
+            self.face_detailer_settings_container.visible = use_face_detailer
+            self.face_detailer_settings_container.opacity = (
+                1 if use_face_detailer else 0
+            )
 
-        if face_detailer_setting:
-            self.fd_steps_slider.value = int(face_detailer_setting.get("steps", 20))
-            self.fd_cfg_slider.value = int(face_detailer_setting.get("cfg", 10))
-        self.update()
+            if face_detailer_setting:
+                self.fd_steps_slider.value = int(face_detailer_setting.get("steps", 20))
+                self.fd_cfg_slider.value = int(face_detailer_setting.get("cfg", 10))
+            self.update()
+        finally:
+            self._is_setting_from_config = False
 
     def get_settings(self) -> tuple[GenerationSetting, FaceDetailerSetting | None]:
         seed = int(self.seed_field.value)

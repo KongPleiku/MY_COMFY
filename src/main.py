@@ -16,6 +16,8 @@ def main(page: ft.Page):
 
     # Ensure ComfyUIClient's WebSocket connection is closed on app disconnect
     def on_disconnect(e):
+        if home.gen_service:
+            home.gen_service.cancel_generation()
         if home.comfy_client and home.comfy_client.is_connected():
             home.comfy_client.close_ws_connection()
 

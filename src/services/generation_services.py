@@ -39,12 +39,18 @@ class GenerationSetting:
 
 class GenerationService:
     def __init__(
-        self, comfy_client, on_progress_update, on_status_update, on_image_update
+        self,
+        comfy_client,
+        on_progress_update,
+        on_status_update,
+        on_image_update,
+        on_preview_update,
     ):
         self.comfy_client = comfy_client
         self.on_progress_update = on_progress_update  # Callback to update UI bar
         self.on_status_update = on_status_update  # Callback to update UI text
         self.on_image_update = on_image_update  # Callback to update main image
+        self.on_preview_update = on_preview_update  # Callback to update preview image
         self._is_generating = False
         self._model_loader_node_id = "1"
         self._positive_prompt_node_id = "4"
@@ -118,6 +124,8 @@ class GenerationService:
             ksampler["cfg"] = setting.cfg
             ksampler["sampler_name"] = setting.sampler_name
             ksampler["scheduler"] = setting.scheduler
+            # Note: "preview_image" should be a string "enable" not a boolean
+            ksampler["preview_image"] = "enable"
 
             latent_image = workflow[self._empty_latent_image_node_id]["inputs"]
             latent_image["width"] = setting.width
@@ -148,39 +156,49 @@ class GenerationService:
                 if msg is None:
                     continue
 
+                if isinstance(msg, bytes):
+                    self._handle_preview_image(msg)
+                    continue
+
                 if msg["type"] == "progress" and "data" in msg:
                     data = msg["data"]
                     self.on_progress_update(data["value"] / data["max"])
 
                 elif msg["type"] == "executed" and "data" in msg:
                     data = msg["data"]
-                    if "images" in data["output"]:
+                    if data.get("output") and "images" in data.get("output"):
                         self.on_status_update(
                             "Downloading...", "Receiving image", "CYAN_200", "CYAN_400"
                         )
-                        # This will handle fetching the image and updating the UI via callback
                         self._handle_image_data(data["output"]["images"])
-                        # Once we have the image, we can break the loop
                         break
 
                     if data.get("prompt_id") == prompt_id and data.get("node") is None:
-                        # End of execution for our prompt
                         break
 
             if not self._is_generating:
-                # If loop was broken by cancellation
                 return
 
             self.on_status_update("Finished", "Ready", "WHITE70", "GREEN_400")
-            self.on_progress_update(1.0)  # Ensure it finishes
-            # Smoothly fade out progress bar
-            threading.Timer(0.5, lambda: self.on_progress_update(0.0)).start()
+            self.on_progress_update(1.0)
 
         except Exception as e:
             print(f"Generation process failed: {e}")
             self.on_status_update("Error", "Failed", "RED_500", "RED_500")
         finally:
             self._is_generating = False
+
+    def _handle_preview_image(self, image_bytes: bytes):
+        """
+        Converts the raw image bytes to a base64 string and updates the UI.
+        """
+        try:
+            # The first 8 bytes are header info, we need to strip it
+            image_data = image_bytes[8:]
+            img_base64 = base64.b64encode(image_data).decode("utf-8")
+            self.on_preview_update(img_base64)
+        except Exception as e:
+            print(f"Failed to handle preview image: {e}")
 
     def _handle_image_data(self, images: list):
         """
@@ -190,7 +208,6 @@ class GenerationService:
         if not images:
             return
 
-        # Process the last image in the list, assuming it's the final output
         image_info = images[-1]
         filename = image_info["filename"]
         subfolder = image_info["subfolder"]
@@ -201,12 +218,10 @@ class GenerationService:
             img_response = requests.get(image_url)
             img_response.raise_for_status()
 
-            # Encode the image content to base64
             img_bytes = img_response.content
             img_base64 = base64.b64encode(img_bytes).decode("utf-8")
 
             print(f"Image '{filename}' received and encoded to base64.")
-            # Update the main UI with the new image data
             self.on_image_update(img_base64)
 
         except Exception as e:

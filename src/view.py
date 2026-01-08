@@ -27,6 +27,7 @@ class HomeView(ft.Stack):
             on_progress_update=self.update_progress_bar,
             on_status_update=self.update_status_widget,
             on_image_update=self.update_image,
+            on_preview_update=self.update_preview,
         )
 
         # --- 2. Initialize Components ---
@@ -114,6 +115,12 @@ class HomeView(ft.Stack):
 
     def update_image(self, image_b64: str):
         """Callback to update the background image from the generation service."""
+        self.background_image.src = None
+        self.background_image.src_base64 = image_b64
+        self.background_image.update()
+
+    def update_preview(self, image_b64: str):
+        """Callback to update the background image with a preview."""
         self.background_image.src = None
         self.background_image.src_base64 = image_b64
         self.background_image.update()

@@ -133,18 +133,22 @@ class ComfyUIClient:
     def receive_ws_message(self):
         """
         Receives a single message from the WebSocket.
+        Handles both text (JSON) and binary (image preview) messages.
         """
         if self._ws and self._connected:
             try:
-                # Set a non-blocking timeout for receiving messages
                 message = self._ws.recv()
-                return json.loads(message)
+                if isinstance(message, str):
+                    return json.loads(message)
+                elif isinstance(message, bytes):
+                    return message  # Return raw bytes for binary messages
             except websocket._exceptions.WebSocketConnectionClosedException:
                 print("WebSocket connection closed unexpectedly.")
                 self.close_ws_connection()
             except websocket._exceptions.WebSocketTimeoutException:
-                # No message received within the timeout, return None
                 return None
+            except json.JSONDecodeError:
+                print(f"Error decoding JSON from message: {message}")
             except Exception as e:
                 print(f"Error receiving WebSocket message: {e}")
         return None

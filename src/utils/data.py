@@ -4,11 +4,12 @@ import os
 
 IMAGE_SRC = "https://picsum.photos/1080/1920"
 
-
 def load_danbooru_tags(limit=100000):
     """Loads tags from the danbooru.csv file."""
     tags = []
-    file_path = os.path.join("json", "danbooru.csv")
+    # Updated path to storage/data/danbooru.csv
+    file_path = os.path.join("storage", "data", "danbooru.csv")
+    
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             reader = csv.reader(f)
@@ -16,10 +17,10 @@ def load_danbooru_tags(limit=100000):
                 if i >= limit:
                     break
                 if row:
+                    # Assuming the tag is in the first column
                     tags.append(row[0])
     except FileNotFoundError:
-        print(f"Error: {file_path} not found.")
+        print(f"Error: {file_path} not found. Please check the directory structure.")
     return tags
-
 
 ALL_PROMPTS = load_danbooru_tags()

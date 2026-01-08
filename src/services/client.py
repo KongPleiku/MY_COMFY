@@ -1,6 +1,7 @@
 import requests
 import websocket  # websocket-client is imported as websocket
 import json
+import uuid
 
 
 class UsageClient:
@@ -12,65 +13,103 @@ class UsageClient:
 
 
 class ComfyUIClient:
-    def __init__(self, api_url="http://127.0.0.1:8188"):
-        self.api_url = api_url
-        self.client_id = self._generate_client_id()
-        self.ws = None  # WebSocket connection
+    def __init__(self, api_url=None):
+        self._api_url = api_url
+        self._client_id = str(uuid.uuid4())
+        self._ws = None  # WebSocket connection
+        self._connected = False
 
-    def _generate_client_id(self):
-        import uuid
+    @property
+    def api_url(self):
+        return self._api_url
 
-        return str(uuid.uuid4())
+    def set_api_url(self, api_url):
+        if self._api_url != api_url:
+            self._api_url = api_url
+            # If URL changes, we should disconnect the old connection
+            if self._connected:
+                self.close_ws_connection()
+                self._connected = False
 
     def connect(self):
         """
         Tests the HTTP connection to the ComfyUI API and establishes a WebSocket connection.
+        Closes any existing WebSocket connection before attempting a new one.
         """
+        if not self._api_url:
+            print("ComfyUI API URL is not set. Cannot connect.")
+            return False
+
+        if self._connected:
+            print("Already connected. Closing existing connection before reconnecting.")
+            self.close_ws_connection()
+
         try:
             # Test HTTP connection
-            response = requests.get(f"{self.api_url}/history")  # A common endpoint
+            # Using a simple GET request to a known endpoint
+            response = requests.get(
+                f"{self._api_url}/history", timeout=5
+            )  # Add timeout
             response.raise_for_status()
-            print(f"Successfully connected to ComfyUI HTTP API at {self.api_url}")
+            print(f"Successfully connected to ComfyUI HTTP API at {self._api_url}")
 
             # Establish WebSocket connection
-            ws_url = f"ws://{self.api_url.split('//')[1]}/ws?clientId={self.client_id}"
-            self.ws = websocket.create_connection(ws_url)
+            # Replace http/https with ws/wss
+            ws_protocol = "wss" if self._api_url.startswith("https") else "ws"
+            ws_url = f"{ws_protocol}://{self._api_url.split('//')[1]}/ws?clientId={self._client_id}"
+
+            self._ws = websocket.create_connection(ws_url, timeout=5)  # Add timeout
             print(f"Successfully connected to ComfyUI WebSocket at {ws_url}")
+            self._connected = True
             return True
-        except requests.exceptions.ConnectionError:
+        except requests.exceptions.ConnectionError as e:
             print(
-                f"Error: Could not connect to ComfyUI HTTP API at {self.api_url}. Is ComfyUI running?"
+                f"Error: Could not connect to ComfyUI HTTP API at {self._api_url}. Is ComfyUI running and accessible? {e}"
             )
+            self._connected = False
+            return False
+        except requests.exceptions.Timeout:
+            print(
+                f"Error: Connection to ComfyUI HTTP API at {self._api_url} timed out."
+            )
+            self._connected = False
             return False
         except requests.exceptions.RequestException as e:
             print(f"Error connecting to ComfyUI HTTP API: {e}")
+            self._connected = False
             return False
         except websocket._exceptions.WebSocketConnectionClosedException as e:
             print(f"Error connecting to ComfyUI WebSocket: {e}")
+            self._connected = False
             return False
+        except websocket._exceptions.WebSocketTimeoutException:
+            print(f"Error: WebSocket connection to {ws_url} timed out.")
+            self._connected = False
+            return False
+        except Exception as e:
+            print(f"An unexpected error occurred during connection: {e}")
+            self._connected = False
+            return False
+
+    def is_connected(self):
+        return self._connected and self._ws and self._ws.connected
 
     def queue_prompt(self, prompt_workflow):
         """
         Queues a prompt to ComfyUI.
-
-        Args:
-            prompt_workflow (dict): The JSON object representing the ComfyUI workflow.
-
-        Returns:
-            dict: The JSON response from the ComfyUI API, or None if an error occurred.
         """
-        if not self.api_url:
-            print("ComfyUI API URL is not set.")
+        if not self.is_connected():
+            print("Not connected to ComfyUI. Cannot queue prompt.")
             return None
 
-        payload = {"prompt": prompt_workflow, "client_id": self.client_id}
+        payload = {"prompt": prompt_workflow, "client_id": self._client_id}
         headers = {"Content-Type": "application/json"}
 
         try:
             response = requests.post(
-                f"{self.api_url}/prompt", data=json.dumps(payload), headers=headers
+                f"{self._api_url}/prompt", data=json.dumps(payload), headers=headers
             )
-            response.raise_for_status()  # Raise an HTTPError for bad responses (4xx or 5xx)
+            response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
             print(f"Error queuing prompt to ComfyUI: {e}")
@@ -80,11 +119,11 @@ class ComfyUIClient:
         """
         Retrieves the history for a given prompt_id.
         """
-        if not self.api_url:
-            print("ComfyUI API URL is not set.")
+        if not self.is_connected():
+            print("Not connected to ComfyUI. Cannot get history.")
             return None
         try:
-            response = requests.get(f"{self.api_url}/history/{prompt_id}")
+            response = requests.get(f"{self._api_url}/history/{prompt_id}")
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
@@ -95,13 +134,17 @@ class ComfyUIClient:
         """
         Receives a single message from the WebSocket.
         """
-        if self.ws:
+        if self._ws and self._connected:
             try:
-                message = self.ws.recv()
+                # Set a non-blocking timeout for receiving messages
+                message = self._ws.recv()
                 return json.loads(message)
             except websocket._exceptions.WebSocketConnectionClosedException:
-                print("WebSocket connection closed.")
-                self.ws = None
+                print("WebSocket connection closed unexpectedly.")
+                self.close_ws_connection()
+            except websocket._exceptions.WebSocketTimeoutException:
+                # No message received within the timeout, return None
+                return None
             except Exception as e:
                 print(f"Error receiving WebSocket message: {e}")
         return None
@@ -110,7 +153,8 @@ class ComfyUIClient:
         """
         Closes the WebSocket connection.
         """
-        if self.ws:
-            self.ws.close()
-            self.ws = None
+        if self._ws and self._ws.connected:
+            self._ws.close()
             print("WebSocket connection closed.")
+        self._ws = None
+        self._connected = False

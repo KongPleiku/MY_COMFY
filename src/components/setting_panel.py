@@ -43,18 +43,20 @@ class SettingsPanel(ft.Container):
 
         self.steps_slider = ft.Slider(
             min=1,
-            max=100,
-            divisions=99,
+            max=40,
+            divisions=39,
             label="Steps: {value}",
             value=20,
+            expand=True, # Added expand=True
             on_change=self._on_setting_change,
         )
         self.cfg_slider = ft.Slider(
             min=1,
-            max=20,
-            divisions=19,
+            max=10,
+            divisions=9,
             label="CFG: {value}",
             value=4,
+            expand=True, # Added expand=True
             on_change=self._on_setting_change,
         )
 
@@ -86,23 +88,27 @@ class SettingsPanel(ft.Container):
         self.face_detailer_switch = ft.Switch(
             value=False, on_change=self.toggle_face_detailer_settings
         )
+        
+        # TextFields for slider values
+        self.fd_steps_value = ft.TextField(read_only=True, width=50)
+        self.fd_cfg_value = ft.TextField(read_only=True, width=50)
+        self.fd_denoise_value = ft.TextField(read_only=True, width=50)
+        self.fd_bbox_threshold_value = ft.TextField(read_only=True, width=50)
+        self.fd_bbox_crop_factor_value = ft.TextField(read_only=True, width=50)
 
-        self.fd_steps_slider = ft.Slider(
-            min=1,
-            max=50,
-            divisions=49,
-            label="Face Detailer Steps: {value}",
-            value=20,
-            on_change=self._on_setting_change,
-        )
-        self.fd_cfg_slider = ft.Slider(
-            min=1,
-            max=20,
-            divisions=19,
-            label="Face Detailer CFG: {value}",
-            value=10,
-            on_change=self._on_setting_change,
-        )
+        self.fd_steps_slider = ft.Slider(min=1, max=40, divisions=39, value=20, expand=True) # Added expand=True
+        self.fd_cfg_slider = ft.Slider(min=1, max=10, divisions=9, value=10, expand=True) # Added expand=True
+        self.fd_denoise_slider = ft.Slider(min=0.1, max=1.0, divisions=9, value=0.4, expand=True) # Added expand=True
+        self.fd_bbox_threshold_slider = ft.Slider(min=0.1, max=1.0, divisions=9, value=0.5, expand=True) # Added expand=True
+        self.fd_bbox_crop_factor_slider = ft.Slider(min=1.0, max=4.0, divisions=30, value=2, expand=True) # Added expand=True
+
+        # Link sliders to their text fields and the generic on_change handler
+        self.fd_steps_slider.on_change = lambda e: self._update_slider_textfield(e, self.fd_steps_value)
+        self.fd_cfg_slider.on_change = lambda e: self._update_slider_textfield(e, self.fd_cfg_value)
+        self.fd_denoise_slider.on_change = lambda e: self._update_slider_textfield(e, self.fd_denoise_value, "{:.2f}")
+        self.fd_bbox_threshold_slider.on_change = lambda e: self._update_slider_textfield(e, self.fd_bbox_threshold_value, "{:.2f}")
+        self.fd_bbox_crop_factor_slider.on_change = lambda e: self._update_slider_textfield(e, self.fd_bbox_crop_factor_value, "{:.2f}")
+
         self.fd_sampler_dropdown = ft.Dropdown(
             label="Sampler",
             value="euler_ancestral",
@@ -126,41 +132,19 @@ class SettingsPanel(ft.Container):
             expand=True,
             on_change=self._on_setting_change,
         )
-        self.fd_denoise_slider = ft.Slider(
-            min=0.1,
-            max=1.0,
-            divisions=9,
-            label="Denoise: {value}",
-            value=0.4,
-            on_change=self._on_setting_change,
-        )
-        self.fd_bbox_threshold_slider = ft.Slider(
-            min=0.1,
-            max=1.0,
-            divisions=9,
-            label="BBox Threshold: {value}",
-            value=0.5,
-            on_change=self._on_setting_change,
-        )
-        self.fd_bbox_crop_factor_slider = ft.Slider(
-            min=1.0,
-            max=4.0,
-            divisions=30,
-            label="BBox Crop Factor: {value}",
-            value=2,
-            on_change=self._on_setting_change,
-        )
+        
         self.face_detailer_settings_container = ft.Column(
             controls=[
-                self.fd_steps_slider,
-                self.fd_cfg_slider,
+                self._create_slider_row("Face Detailer Steps", self.fd_steps_slider, self.fd_steps_value),
+                self._create_slider_row("Face Detailer CFG", self.fd_cfg_slider, self.fd_cfg_value),
                 ft.Row([self.fd_sampler_dropdown, self.fd_scheduler_dropdown]),
-                self.fd_denoise_slider,
-                self.fd_bbox_threshold_slider,
-                self.fd_bbox_crop_factor_slider,
+                self._create_slider_row("Denoise", self.fd_denoise_slider, self.fd_denoise_value),
+                self._create_slider_row("BBox Threshold", self.fd_bbox_threshold_slider, self.fd_bbox_threshold_value),
+                self._create_slider_row("BBox Crop Factor", self.fd_bbox_crop_factor_slider, self.fd_bbox_crop_factor_value),
             ],
             visible=False,
             animate_opacity=300,
+            spacing=5
         )
 
         self.sdxl_tab = ft.Column(
@@ -256,6 +240,15 @@ class SettingsPanel(ft.Container):
 
     def close(self):
         self.on_close_callback()
+        
+    def _create_slider_row(self, label, slider, value_field):
+        return ft.Column([
+            ft.Text(label, size=12),
+            ft.Row([
+                slider,
+                value_field,
+            ], spacing=10, alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+        ], spacing=0)
 
     def toggle_face_detailer_settings(self, e):
         self.face_detailer_settings_container.visible = e.control.value
@@ -265,6 +258,11 @@ class SettingsPanel(ft.Container):
     def _on_setting_change(self, e):
         if not self._is_setting_from_config and self.on_change:
             self.on_change()
+
+    def _update_slider_textfield(self, e, textfield, format_str="{}"):
+        textfield.value = format_str.format(e.control.value)
+        textfield.update()
+        self._on_setting_change(e)
 
     def _randomize_seed(self, e):
         self.seed_field.value = str(random.randint(0, 2**32 - 1))
@@ -308,12 +306,19 @@ class SettingsPanel(ft.Container):
                 self.fd_sampler_dropdown.value = face_detailer_setting.get("sampler_name", "euler_ancestral")
                 self.fd_scheduler_dropdown.value = face_detailer_setting.get("scheduler", "sgm_uniform")
 
-                # Clamp face detailer slider values
+                # Clamp and set face detailer slider values
                 self.fd_steps_slider.value = self._clamp(int(face_detailer_setting.get("steps", 20)), self.fd_steps_slider.min, self.fd_steps_slider.max)
                 self.fd_cfg_slider.value = self._clamp(int(face_detailer_setting.get("cfg", 10)), self.fd_cfg_slider.min, self.fd_cfg_slider.max)
                 self.fd_denoise_slider.value = self._clamp(float(face_detailer_setting.get("denoise", 0.4)), self.fd_denoise_slider.min, self.fd_denoise_slider.max)
                 self.fd_bbox_threshold_slider.value = self._clamp(float(face_detailer_setting.get("bbox_threshold", 0.5)), self.fd_bbox_threshold_slider.min, self.fd_bbox_threshold_slider.max)
                 self.fd_bbox_crop_factor_slider.value = self._clamp(float(face_detailer_setting.get("bbox_crop_factor", 2)), self.fd_bbox_crop_factor_slider.min, self.fd_bbox_crop_factor_slider.max)
+            
+            # Update text fields with initial values
+            self.fd_steps_value.value = str(self.fd_steps_slider.value)
+            self.fd_cfg_value.value = str(self.fd_cfg_slider.value)
+            self.fd_denoise_value.value = f"{self.fd_denoise_slider.value:.2f}"
+            self.fd_bbox_threshold_value.value = f"{self.fd_bbox_threshold_slider.value:.2f}"
+            self.fd_bbox_crop_factor_value.value = f"{self.fd_bbox_crop_factor_slider.value:.2f}"
             
             self.update()
         finally:

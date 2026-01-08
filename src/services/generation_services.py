@@ -4,6 +4,37 @@ import json
 import os
 import requests
 import base64
+from dataclasses import dataclass, field
+
+
+@dataclass
+class FaceDetailerSetting:
+    steps: int = field(default=20)
+    cfg: int = field(default=10)
+
+
+@dataclass
+class GenerationSetting:
+    model: str = field(default="WAI_ANI_Q8_0.gguf")
+
+    # Prompting
+    positive_prompt: str = field(default="")
+
+    # Sampler Setting
+    seed: int = field(default=1)
+    steps: int = field(default=20)
+    cfg: int = field(default=4)
+    sampler_name: str = field(default="euler_ancestral")
+    scheduler: str = field(default="sgm_uniform")
+
+    # Image size
+    width: int = field(default=1024)
+    height: int = field(default=1024)
+
+    # Optional
+    Face_detailer_switch: int = field(
+        default=1
+    )  # No face detailer: 1, use face detailer: 2
 
 
 class GenerationService:
@@ -15,11 +46,18 @@ class GenerationService:
         self.on_status_update = on_status_update  # Callback to update UI text
         self.on_image_update = on_image_update  # Callback to update main image
         self._is_generating = False
-        self._positive_prompt_node_id = (
-            "4"  # Node ID for the positive prompt in the workflow
-        )
+        self._model_loader_node_id = "1"
+        self._positive_prompt_node_id = "4"
+        self._k_sampler_node_id = "7"
+        self._empty_latent_image_node_id = "8"
+        self._face_detailer_node_id = "13"
+        self._face_detailer_switch_node_id = "21"
 
-    def start_generation(self, prompt: str):
+    def start_generation(
+        self,
+        setting: GenerationSetting,
+        face_detailer_setting: FaceDetailerSetting | None = None,
+    ):
         if self._is_generating:
             return
 
@@ -28,14 +66,19 @@ class GenerationService:
             self.on_status_update("Error", "Not Connected", "RED_500", "RED_500")
             return
 
-        print(f"Service: Starting generation for '{prompt}'")
+        print(f"Service: Starting generation for '{setting.positive_prompt}'")
         self._is_generating = True
 
         self.on_status_update("Queuing...", "Sending prompt", "BLUE_200", "ORANGE_400")
         self.on_progress_update(0.01)  # Small initial progress
 
         threading.Thread(
-            target=self._real_generation_process, args=(prompt,), daemon=True
+            target=self._real_generation_process,
+            args=(
+                setting,
+                face_detailer_setting,
+            ),
+            daemon=True,
         ).start()
 
     def cancel_generation(self):
@@ -46,15 +89,43 @@ class GenerationService:
         self.on_status_update("Cancelled", "Ready", "WHITE70", "GREEN_400")
         self.on_progress_update(0.0)
 
-    def _real_generation_process(self, prompt_text: str):
+    def _real_generation_process(
+        self,
+        setting: GenerationSetting,
+        face_detailer_setting: FaceDetailerSetting | None = None,
+    ):
         """The actual generation process that runs in a thread."""
         try:
             # 1. Load the workflow template
             with open("json/GGUF_WORKFLOW_API.json", "r") as f:
                 workflow = json.load(f)
 
-            # 2. Modify the prompt
-            workflow[self._positive_prompt_node_id]["inputs"]["text"] = prompt_text
+            # 2. Modify the workflow with GenerationSetting
+            workflow[self._model_loader_node_id]["inputs"]["unet_name"] = setting.model
+
+            workflow[self._positive_prompt_node_id]["inputs"][
+                "text"
+            ] = setting.positive_prompt
+
+            ksampler = workflow[self._k_sampler_node_id]["inputs"]
+            ksampler["seed"] = setting.seed
+            ksampler["steps"] = setting.steps
+            ksampler["cfg"] = setting.cfg
+            ksampler["sampler_name"] = setting.sampler_name
+            ksampler["scheduler"] = setting.scheduler
+
+            latent_image = workflow[self._empty_latent_image_node_id]["inputs"]
+            latent_image["width"] = setting.width
+            latent_image["height"] = setting.height
+
+            if face_detailer_setting:
+                face_detailer = workflow[self._face_detailer_node_id]["inputs"]
+                face_detailer["steps"] = face_detailer_setting.steps
+                face_detailer["cfg"] = face_detailer_setting.cfg
+
+            workflow[self._face_detailer_switch_node_id]["inputs"][
+                "select"
+            ] = setting.Face_detailer_switch
 
             # 3. Queue the prompt
             response = self.comfy_client.queue_prompt(workflow)

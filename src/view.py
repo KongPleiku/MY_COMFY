@@ -6,7 +6,11 @@ from components.status_indicator import StatusIndicator
 from components.connection_indicator import ConnectionIndicator
 from components.setting_panel import SettingsPanel
 from components.input_bar import InputBar
-from services.generation_services import GenerationService
+from services.generation_services import (
+    GenerationService,
+    GenerationSetting,
+    FaceDetailerSetting,
+)
 from services.client import ComfyUIClient
 
 
@@ -30,7 +34,7 @@ class HomeView(ft.Stack):
         self.connection_indicator = ConnectionIndicator()
 
         self.input_bar = InputBar(
-            on_send=self.gen_service.start_generation,
+            on_send=self.start_generation_from_input,
             on_cancel=lambda e: self.gen_service.cancel_generation(),
             on_settings_click=self.toggle_settings,
         )
@@ -72,6 +76,21 @@ class HomeView(ft.Stack):
             self.settings_sheet,
             self.focus_thief,
         ]
+
+    def start_generation_from_input(self, prompt: str):
+        """
+        Called by the InputBar's send button.
+        Creates settings objects and starts the generation.
+        """
+        # For now, we'll create default settings and just change the prompt.
+        # Later, these can be populated from the UI.
+        generation_setting, face_detailer_setting = self.settings_sheet.get_settings()
+        generation_setting.positive_prompt = prompt
+
+        self.gen_service.start_generation(
+            setting=generation_setting,
+            face_detailer_setting=face_detailer_setting,
+        )
 
     def handle_connect_click(self, url: str):
         """Starts the connection process in a background thread."""

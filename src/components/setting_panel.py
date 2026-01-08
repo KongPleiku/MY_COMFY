@@ -1,5 +1,6 @@
 # src/components/settings_sheet.py
 import flet as ft
+from services.generation_services import GenerationSetting, FaceDetailerSetting
 
 
 class SettingsPanel(ft.Container):
@@ -13,25 +14,85 @@ class SettingsPanel(ft.Container):
             hint_text="http://127.0.0.1:8188",
             value="http://n3.ckey.vn:1609",
         )
+        # --- Controls for GenerationSetting ---
+        self.model_field = ft.TextField(label="Model", value="WAI_ANI_Q8_0.gguf")
+        self.seed_field = ft.TextField(label="Seed", value="1", width=150)
+        self.width_field = ft.TextField(label="Width", value="1024", expand=True)
+        self.height_field = ft.TextField(label="Height", value="1024", expand=True)
 
-        # --- Tab Content ---
-        self.sdxl_tab = ft.Column(
-            controls=[
-                ft.Container(height=20),
-                ft.Row(
-                    [ft.Text("High Quality"), ft.Switch(value=True)],
-                    alignment="spaceBetween",
-                ),
-                ft.Row(
-                    [ft.Text("Private Mode"), ft.Switch(value=False)],
-                    alignment="spaceBetween",
-                ),
-                ft.Divider(color=ft.colors.GREY_800),
-                ft.Text("Steps", color=ft.colors.GREY_400),
-                ft.Slider(min=10, max=50, divisions=40, label="{value}", value=20),
-            ]
+        self.steps_slider = ft.Slider(
+            min=1, max=100, divisions=99, label="Steps: {value}", value=20
+        )
+        self.cfg_slider = ft.Slider(
+            min=1, max=20, divisions=19, label="CFG: {value}", value=4
         )
 
+        self.sampler_dropdown = ft.Dropdown(
+            label="Sampler",
+            value="euler_ancestral",
+            options=[
+                ft.dropdown.Option("euler_ancestral"),
+                ft.dropdown.Option("euler"),
+                ft.dropdown.Option("dpm++_2m_karras"),
+            ],
+            expand=True,
+        )
+        self.scheduler_dropdown = ft.Dropdown(
+            label="Scheduler",
+            value="sgm_uniform",
+            options=[
+                ft.dropdown.Option("sgm_uniform"),
+                ft.dropdown.Option("normal"),
+                ft.dropdown.Option("karras"),
+                ft.dropdown.Option("simple"),
+            ],
+            expand=True,
+        )
+
+        # --- Controls for FaceDetailer ---
+        self.face_detailer_switch = ft.Switch(
+            value=False, on_change=self.toggle_face_detailer_settings
+        )
+
+        self.fd_steps_slider = ft.Slider(
+            min=1, max=50, divisions=49, label="Face Detailer Steps: {value}", value=20
+        )
+        self.fd_cfg_slider = ft.Slider(
+            min=1, max=20, divisions=19, label="Face Detailer CFG: {value}", value=10
+        )
+
+        self.face_detailer_settings_container = ft.Column(
+            controls=[
+                self.fd_steps_slider,
+                self.fd_cfg_slider,
+            ],
+            visible=False,
+            animate_opacity=300,
+        )
+
+        self.sdxl_tab = ft.Column(
+            controls=[
+                self.model_field,
+                ft.Row([self.seed_field]),
+                ft.Row([self.width_field, self.height_field]),
+                ft.Text("Steps"),
+                self.steps_slider,
+                ft.Text("CFG Scale"),
+                self.cfg_slider,
+                ft.Row([self.sampler_dropdown, self.scheduler_dropdown]),
+                ft.Divider(height=10, color="transparent"),
+                ft.Divider(),
+                ft.Row(
+                    [
+                        ft.Text("Use Face Detailer"),
+                        self.face_detailer_switch,
+                    ],
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                ),
+                self.face_detailer_settings_container,
+            ],
+            scroll=ft.ScrollMode.AUTO,
+        )
         self.conn_tab = ft.Column(
             controls=[
                 ft.Container(height=20),
@@ -54,11 +115,11 @@ class SettingsPanel(ft.Container):
         )
 
         # --- Container Config ---
-        self.height = page_height * 0.6
+        self.height = page_height * 0.8
         self.bottom = 0
         self.left = 0
         self.right = 0
-        self.bgcolor = ft.colors.GREY_900
+        self.bgcolor = ft.colors.with_opacity(0.95, ft.colors.GREY_900)
         self.border_radius = ft.border_radius.only(top_left=20, top_right=20)
         self.padding = 20
         self.offset = ft.transform.Offset(0, 1)  # Hidden
@@ -72,6 +133,7 @@ class SettingsPanel(ft.Container):
                     bgcolor=ft.colors.GREY_600,
                     border_radius=10,
                     alignment=ft.alignment.center,
+                    on_click=lambda e: self.close(),
                 ),
                 ft.Row(
                     [
@@ -82,7 +144,8 @@ class SettingsPanel(ft.Container):
                 ),
                 ft.Divider(color=ft.colors.GREY_800),
                 self.tabs,
-            ]
+            ],
+            expand=True,
         )
 
     def open(self):
@@ -92,3 +155,30 @@ class SettingsPanel(ft.Container):
 
     def close(self):
         self.on_close_callback()
+
+    def toggle_face_detailer_settings(self, e):
+        self.face_detailer_settings_container.visible = e.control.value
+        self.face_detailer_settings_container.opacity = 1 if e.control.value else 0
+        self.update()
+
+    def get_settings(self) -> tuple[GenerationSetting, FaceDetailerSetting | None]:
+        gen_settings = GenerationSetting(
+            model=self.model_field.value,
+            seed=int(self.seed_field.value),
+            steps=int(self.steps_slider.value),
+            cfg=int(self.cfg_slider.value),
+            sampler_name=self.sampler_dropdown.value,
+            scheduler=self.scheduler_dropdown.value,
+            width=int(self.width_field.value),
+            height=int(self.height_field.value),
+            Face_detailer_switch=2 if self.face_detailer_switch.value else 1,
+        )
+
+        face_detailer_settings = None
+        if self.face_detailer_switch.value:
+            face_detailer_settings = FaceDetailerSetting(
+                steps=int(self.fd_steps_slider.value),
+                cfg=int(self.fd_cfg_slider.value),
+            )
+
+        return gen_settings, face_detailer_settings

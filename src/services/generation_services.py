@@ -10,6 +10,11 @@ from typing import TypedDict, Optional, Literal
 class FaceDetailerSetting(TypedDict):
     steps: int
     cfg: int
+    sampler_name: str
+    scheduler: str
+    denoise: float
+    bbox_threshold: float
+    bbox_crop_factor: float
 
 
 class GenerationSetting(TypedDict):
@@ -133,6 +138,17 @@ class GenerationService:
                 face_detailer = workflow[self._face_detailer_node_id]["inputs"]
                 face_detailer["steps"] = face_detailer_setting.get("steps")
                 face_detailer["cfg"] = face_detailer_setting.get("cfg")
+                face_detailer["sampler_name"] = face_detailer_setting.get("sampler_name")
+                face_detailer["scheduler"] = face_detailer_setting.get("scheduler")
+                face_detailer["denoise"] = face_detailer_setting.get("denoise")
+                face_detailer["bbox_threshold"] = face_detailer_setting.get(
+                    "bbox_threshold"
+                )
+                face_detailer["bbox_crop_factor"] = face_detailer_setting.get(
+                    "bbox_crop_factor"
+                )
+                # Use the main seed for the face detailer as well
+                face_detailer["seed"] = setting.get("seed")
 
             workflow[self._face_detailer_switch_node_id]["inputs"][
                 "select"

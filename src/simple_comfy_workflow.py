@@ -20,14 +20,14 @@ def main():
 
     # Load a sample ComfyUI workflow (replace with your actual workflow JSON)
     try:
-        with open("json/GGUF_WORKFLOW_API.json", "r") as f:
+        with open("assets/GGUF_WORKFLOW_API.json", "r") as f:
             prompt_workflow = json.load(f)
     except FileNotFoundError:
-        print("Error: json/GGUF_WORKFLOW_API.json not found.")
+        print("Error: assets/GGUF_WORKFLOW_API.json not found.")
         print("Please provide a valid ComfyUI workflow JSON file.")
         return
     except json.JSONDecodeError:
-        print("Error: Could not decode JSON from json/GGUF_WORKFLOW_API.json.")
+        print("Error: Could not decode JSON from assets/GGUF_WORKFLOW_API.json.")
         return
 
     print("Sample workflow loaded. Queuing prompt...")

@@ -110,9 +110,9 @@ class GenerationService:
     ):
         """The actual generation process that runs in a thread."""
         try:
-            logger.debug("Loading workflow template from 'json/GGUF_WORKFLOW_API.json'")
+            logger.debug("Loading workflow template from 'assets/GGUF_WORKFLOW_API.json'")
             # 1. Load the workflow template
-            with open("src/assets/GGUF_WORKFLOW_API.json", "r") as f:
+            with open("assets/GGUF_WORKFLOW_API.json", "r") as f:
                 workflow = json.load(f)
 
             # 2. Modify the workflow with GenerationSetting

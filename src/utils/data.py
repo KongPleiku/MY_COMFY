@@ -12,7 +12,7 @@ def load_danbooru_tags(limit=100000):
     """Loads tags from the danbooru.csv file."""
     tags = []
     # Updated path to storage/data/danbooru.csv
-    file_path = os.path.join("storage", "data", "danbooru.csv")
+    file_path = os.path.join(os.path.dirname(__file__), "..", "assets", "danbooru.csv")
     logger.info(f"Loading danbooru tags from {file_path}")
     try:
         with open(file_path, "r", encoding="utf-8") as f:

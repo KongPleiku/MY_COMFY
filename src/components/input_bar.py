@@ -15,7 +15,7 @@ class InputBar(ft.Container):
         
         # State tracking
         self.cursor_position = 0
-        self.last_value = ""  # We need this to calculate diffs
+        self.last_value = ""
         
         logger.info("InputBar initialized.")
 
@@ -29,7 +29,7 @@ class InputBar(ft.Container):
             min_lines=1,
             max_lines=3,
             content_padding=ft.padding.symmetric(horizontal=20, vertical=10),
-            expand=True,
+            expand=True, # This will now have more room to expand
             border_color=ft.colors.TRANSPARENT,
             on_change=self._on_text_change,
         )
@@ -45,11 +45,31 @@ class InputBar(ft.Container):
             animate_opacity=200,
             margin=ft.margin.only(bottom=10, left=10, right=10),
         )
+
+        # 1. Define the Cancel button explicitly
+        self.cancel_button = ft.IconButton(
+            ft.icons.CLOSE,
+            icon_color=ft.colors.RED_400,
+            on_click=lambda e: self.on_cancel(e),
+        )
+
+        # 2. Define the Send button
         self.send_button = ft.IconButton(
             ft.icons.ARROW_UPWARD,
             bgcolor=ft.colors.BLUE_700,
             icon_color=ft.colors.WHITE,
             on_click=lambda e: self._on_send_click(),
+        )
+
+        # 3. Create a Column to stack them vertically
+        self.button_stack = ft.Column(
+            controls=[
+                self.cancel_button,
+                self.send_button
+            ],
+            spacing=5, # Small gap between the two buttons
+            alignment=ft.MainAxisAlignment.END,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
         # --- Layout ---
@@ -76,12 +96,8 @@ class InputBar(ft.Container):
                             on_click=lambda e: self.on_settings_click(e),
                         ),
                         self.prompt_field,
-                        ft.IconButton(
-                            ft.icons.CLOSE,
-                            icon_color=ft.colors.RED_400,
-                            on_click=lambda e: self.on_cancel(e),
-                        ),
-                        self.send_button,
+                        # 4. Replace the individual buttons with the stack
+                        self.button_stack, 
                     ],
                     vertical_alignment=ft.CrossAxisAlignment.END,
                 ),
@@ -234,3 +250,8 @@ class InputBar(ft.Container):
         self.suggestion_container.height = 0
         self.suggestion_container.opacity = 0
         self.suggestion_container.update()
+    
+    def toggle_read_only(self, is_readonly):
+        logger.debug(f"Toggling read-only to: {is_readonly}")
+        self.prompt_field.read_only = is_readonly
+        self.prompt_field.update()

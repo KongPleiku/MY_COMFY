@@ -159,9 +159,11 @@ class GenerationService:
                 # Use the main seed for the face detailer as well
                 face_detailer["seed"] = setting.get("seed")
 
-            workflow[self._face_detailer_switch_node_id]["inputs"]["select"] = (
-                setting.get("Face_detailer_switch") - 1
-            )  # The switch is 0-indexed (0, 1), but the setting is 1 or 2
+            workflow[self._face_detailer_switch_node_id]["inputs"][
+                "select"
+            ] = setting.get(
+                "Face_detailer_switch"
+            )  # The ImpactInversedSwitch expects 1-indexed values (1 or 2) from the setting.
 
             # 3. Queue the prompt
             logger.info("Queuing prompt...")

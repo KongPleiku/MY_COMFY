@@ -205,7 +205,7 @@
   },
   "15": {
     "inputs": {
-      "model_name": "bbox/face_yolov8n.pt"
+      "model_name": "bbox/face_yolov8m.pt"
     },
     "class_type": "UltralyticsDetectorProvider",
     "_meta": {

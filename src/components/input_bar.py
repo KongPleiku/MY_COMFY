@@ -1,10 +1,9 @@
-# src/components/input_bar.py
 import flet as ft
 from utils.logger import get_logger
 from utils.data import ALL_PROMPTS
+import re
 
 logger = get_logger(__name__)
-
 
 class InputBar(ft.Container):
     def __init__(self, on_send, on_cancel, on_settings_click, on_change=None):
@@ -13,6 +12,11 @@ class InputBar(ft.Container):
         self.on_cancel = on_cancel
         self.on_settings_click = on_settings_click
         self.on_change = on_change
+        
+        # State tracking
+        self.cursor_position = 0
+        self.last_value = ""  # We need this to calculate diffs
+        
         logger.info("InputBar initialized.")
 
         # --- Controls ---
@@ -88,42 +92,100 @@ class InputBar(ft.Container):
         prompt = self.prompt_field.value
         logger.info(f"Send button clicked with prompt: '{prompt}'")
         self.on_send(prompt)
+        # Reset tracker on send
+        self.last_value = "" 
 
     def set_input_enabled(self, enabled: bool):
-        """Enable or disable the send button."""
-        logger.debug(f"Setting input enabled to: {enabled}")
         self.send_button.disabled = not enabled
         self.update()
 
     def clear_prompt(self):
-        """Clears the prompt field."""
-        logger.info("Clearing prompt field.")
         self.prompt_field.value = ""
+        self.last_value = ""
         self.update()
 
     def set_prompt(self, value: str):
-        """Sets the prompt field's value."""
-        logger.debug(f"Setting prompt to: '{value}'")
         self.prompt_field.value = value
+        self.last_value = value
         self.update()
 
+    # --- INTELLIGENT SUGGESTION LOGIC ---
+
+    def _calculate_cursor_position(self, current_text):
+        """
+        Since Flet 0.25.2 lacks selection property, we infer the cursor position
+        by comparing the old text (self.last_value) with the new text.
+        """
+        if not self.last_value:
+            return len(current_text)
+        
+        # 1. Find the length of the common prefix (where text is identical)
+        common_len = 0
+        min_len = min(len(current_text), len(self.last_value))
+        while common_len < min_len and current_text[common_len] == self.last_value[common_len]:
+            common_len += 1
+            
+        # 2. Estimate cursor based on change type
+        if len(current_text) >= len(self.last_value):
+            # Insertion (Typing): Cursor is at end of inserted segment
+            inserted_count = len(current_text) - len(self.last_value)
+            return common_len + inserted_count
+        else:
+            # Deletion (Backspace): Cursor is at the point of divergence
+            return common_len
+
+    def _get_word_boundary(self):
+        text = self.prompt_field.value
+        cursor = self.cursor_position
+
+        if not text:
+            return None, None, None
+
+        # Look strictly BEHIND the calculated cursor
+        text_before_cursor = text[:cursor]
+
+        # Regex: Find the continuous word characters touching the end of the string
+        match = re.search(r"[\w-]+$", text_before_cursor)
+
+        if not match:
+            return None, None, None
+
+        # The start index in the FULL text
+        start = match.start()
+        # The end index is effectively our cursor
+        end = cursor
+        current_word = match.group(0)
+
+        return start, end, current_word
+
     def _on_text_change(self, e):
+        current_text = e.control.value
+        
+        # 1. Calculate cursor position before updating last_value
+        self.cursor_position = self._calculate_cursor_position(current_text)
+        
+        # 2. Update last_value for the next event
+        self.last_value = current_text
+
         if self.on_change:
             self.on_change()
-        typed_text = e.control.value
-        logger.debug(f"Text changed: '{typed_text}'")
-        if not typed_text.strip():
-            self.hide_suggestions()
-            return
+            
+        self._trigger_suggestions()
 
-        parts = typed_text.split(",")
-        current_word = parts[-1].strip().lower()
+    def _trigger_suggestions(self):
+        start, end, current_word = self._get_word_boundary()
 
         if not current_word:
             self.hide_suggestions()
             return
 
-        matches = [p for p in ALL_PROMPTS if p.lower().startswith(current_word)]
+        # Smart Filtering
+        matches = [p for p in ALL_PROMPTS if p.lower().startswith(current_word.lower())]
+
+        # Exact match check (if user finished typing the word, hide menu)
+        if len(matches) == 1 and matches[0].lower() == current_word.lower():
+            self.hide_suggestions()
+            return
 
         if not matches:
             self.hide_suggestions()
@@ -132,7 +194,6 @@ class InputBar(ft.Container):
         self._update_suggestions(matches[:10])
 
     def _update_suggestions(self, matches):
-        logger.debug(f"Updating suggestions with {len(matches)} matches.")
         self.suggestion_list.controls = [
             ft.ListTile(
                 title=ft.Text(m, color=ft.colors.WHITE),
@@ -141,7 +202,6 @@ class InputBar(ft.Container):
             )
             for m in matches
         ]
-
         self.suggestion_container.height = min(len(matches) * 50, 200)
         self.suggestion_container.opacity = 1
         self.suggestion_container.update()
@@ -149,24 +209,28 @@ class InputBar(ft.Container):
 
     def _use_suggestion(self, e):
         suggestion = e.control.data
-        logger.info(f"Suggestion selected: '{suggestion}'")
-        current_text = self.prompt_field.value
-        parts = current_text.split(",")
+        text = self.prompt_field.value
+        
+        # Recalculate boundary based on current cursor
+        start, end, current_word = self._get_word_boundary()
 
-        # Replace the last part with the suggestion
-        parts[-1] = f" {suggestion}" if len(parts) > 1 else suggestion
+        if start is None:
+            return
 
-        self.prompt_field.value = ",".join(parts) + ", "
+        # Split text into 3 parts: Before word, The word (removed), After cursor
+        text_before = text[:start]
+        text_after = text[end:]
+
+        # Create new prompt
+        new_text = f"{text_before}{suggestion} {text_after}"
+
+        self.prompt_field.value = new_text
+        self.last_value = new_text  # CRITICAL: Sync last_value so next type works
         self.prompt_field.update()
+        self.prompt_field.focus()
         self.hide_suggestions()
 
     def hide_suggestions(self):
-        logger.debug("Hiding suggestions.")
         self.suggestion_container.height = 0
         self.suggestion_container.opacity = 0
         self.suggestion_container.update()
-
-    def toggle_read_only(self, is_readonly):
-        logger.debug(f"Toggling read-only to: {is_readonly}")
-        self.prompt_field.read_only = is_readonly
-        self.prompt_field.update()

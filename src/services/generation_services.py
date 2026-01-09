@@ -100,6 +100,7 @@ class GenerationService:
         if self._prompt_id:
             # Clear the history for the cancelled prompt
             self.comfy_client.get_history(self._prompt_id)
+            self._prompt_id = None
         self.on_status_update("Cancelled", "Ready", "WHITE70", "GREEN_400")
         self.on_progress_update(0.0)
 
@@ -109,6 +110,7 @@ class GenerationService:
         face_detailer_setting: FaceDetailerSetting | None = None,
     ):
         """The actual generation process that runs in a thread."""
+        current_prompt_id = None
         try:
             logger.debug("Loading workflow template from 'assets/GGUF_WORKFLOW_API.json'")
             # 1. Load the workflow template
@@ -172,6 +174,7 @@ class GenerationService:
                 raise Exception("Failed to queue prompt or invalid response.")
 
             self._prompt_id = response["prompt_id"]
+            current_prompt_id = self._prompt_id
             logger.info(f"Prompt queued with ID: {self._prompt_id}")
             self.on_status_update(
                 "Generating...", f"ID: {self._prompt_id[:8]}", "BLUE_200", "ORANGE_400"
@@ -221,8 +224,9 @@ class GenerationService:
             logger.error(f"Generation process failed: {e}", exc_info=True)
             self.on_status_update("Error", "Failed", "RED_500", "RED_500")
         finally:
-            self._is_generating = False
-            self._prompt_id = None
+            if current_prompt_id and self._prompt_id == current_prompt_id:
+                self._is_generating = False
+                self._prompt_id = None
 
     def _handle_preview_image(self, image_bytes: bytes):
         """

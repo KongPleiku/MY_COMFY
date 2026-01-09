@@ -110,8 +110,10 @@ class HomeView(ft.Stack):
         logger.info("HomeView layout built.")
 
     def did_mount(self):
-        logger.info("HomeView did_mount: Loading configuration and connecting.")
-        self._load_config_and_connect()
+        logger.info("HomeView did_mount: Scheduling config load and connection.")
+        # Use a timer to delay the startup actions slightly.
+        # This can help prevent race conditions on app start after a force-stop.
+        threading.Timer(0.5, self._load_config_and_connect).start()
 
     def _load_config_and_connect(self):
         logger.debug("Loading configuration.")

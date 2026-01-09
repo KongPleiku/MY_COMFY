@@ -439,8 +439,8 @@ class SettingsPanel(ft.Container):
                 )
 
             # Update text fields with initial values
-            self.fd_steps_value.value = str(self.fd_steps_slider.value)
-            self.fd_cfg_value.value = str(self.fd_cfg_slider.value)
+            self.fd_steps_value.value = str(int(self.fd_steps_slider.value))
+            self.fd_cfg_value.value = str(int(self.fd_cfg_slider.value))
             self.fd_denoise_value.value = f"{self.fd_denoise_slider.value:.2f}"
             self.fd_bbox_threshold_value.value = (
                 f"{self.fd_bbox_threshold_slider.value:.2f}"

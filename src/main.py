@@ -1,9 +1,13 @@
 # src/main.py
 import flet as ft
 from view import HomeView
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def main(page: ft.Page):
+    logger.info("Application starting...")
     page.padding = 0
     page.spacing = 0
     page.theme_mode = ft.ThemeMode.DARK
@@ -17,6 +21,7 @@ def main(page: ft.Page):
 
     # Ensure ComfyUIClient's WebSocket connection is closed on app disconnect
     def on_disconnect(e):
+        logger.info("Application disconnecting...")
         if home.gen_service:
             home.gen_service.cancel_generation()
         if home.comfy_client and home.comfy_client.is_connected():

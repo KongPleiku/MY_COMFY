@@ -5,6 +5,9 @@ import os
 import requests
 import base64
 from typing import TypedDict, Optional, Literal
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class FaceDetailerSetting(TypedDict):
@@ -27,9 +30,7 @@ class GenerationSetting(TypedDict):
     scheduler: str
     width: int
     height: int
-    Face_detailer_switch: Literal[
-        1, 2
-    ]  # 1 for no face detailer, 2 for use face detailer
+    Face_detailer_switch: int
 
 
 class GenerationService:
@@ -61,20 +62,21 @@ class GenerationService:
         face_detailer_setting: FaceDetailerSetting | None = None,
     ):
         if self._is_generating:
+            logger.warning("Generation already in progress.")
             return
 
         if not self.comfy_client.is_connected():
-            print("Client not connected, attempting to reconnect...")
+            logger.info("Client not connected, attempting to reconnect...")
             self.on_status_update(
                 "Connecting...", "Re-establishing link", "BLUE_200", "ORANGE_400"
             )
             if not self.comfy_client.connect():
-                print("Service Error: Failed to reconnect to ComfyUI.")
+                logger.error("Failed to reconnect to ComfyUI.")
                 self.on_status_update("Error", "Not Connected", "RED_500", "RED_500")
                 return
 
         setting_log = setting.get("positive_prompt")
-        print(f"Service: Starting generation for '{setting_log}'")
+        logger.info(f"Starting generation for '{setting_log}'")
         self._is_generating = True
 
         self.on_status_update("Queuing...", "Sending prompt", "BLUE_200", "ORANGE_400")
@@ -92,7 +94,7 @@ class GenerationService:
     def cancel_generation(self):
         if not self._is_generating:
             return
-        print("Service: Generation cancelled by user.")
+        logger.info("Generation cancelled by user.")
         self._is_generating = False
         self.comfy_client.interrupt_generation()
         if self._prompt_id:
@@ -108,11 +110,13 @@ class GenerationService:
     ):
         """The actual generation process that runs in a thread."""
         try:
+            logger.debug("Loading workflow template from 'json/GGUF_WORKFLOW_API.json'")
             # 1. Load the workflow template
             with open("json/GGUF_WORKFLOW_API.json", "r") as f:
                 workflow = json.load(f)
 
             # 2. Modify the workflow with GenerationSetting
+            logger.debug(f"Modifying workflow with settings: {setting}")
             workflow[self._model_loader_node_id]["inputs"]["unet_name"] = setting.get(
                 "model"
             )
@@ -135,10 +139,15 @@ class GenerationService:
             latent_image["height"] = setting.get("height")
 
             if face_detailer_setting:
+                logger.debug(
+                    f"Applying face detailer settings: {face_detailer_setting}"
+                )
                 face_detailer = workflow[self._face_detailer_node_id]["inputs"]
                 face_detailer["steps"] = face_detailer_setting.get("steps")
                 face_detailer["cfg"] = face_detailer_setting.get("cfg")
-                face_detailer["sampler_name"] = face_detailer_setting.get("sampler_name")
+                face_detailer["sampler_name"] = face_detailer_setting.get(
+                    "sampler_name"
+                )
                 face_detailer["scheduler"] = face_detailer_setting.get("scheduler")
                 face_detailer["denoise"] = face_detailer_setting.get("denoise")
                 face_detailer["bbox_threshold"] = face_detailer_setting.get(
@@ -150,21 +159,24 @@ class GenerationService:
                 # Use the main seed for the face detailer as well
                 face_detailer["seed"] = setting.get("seed")
 
-            workflow[self._face_detailer_switch_node_id]["inputs"][
-                "select"
-            ] = setting.get("Face_detailer_switch")
+            workflow[self._face_detailer_switch_node_id]["inputs"]["select"] = (
+                setting.get("Face_detailer_switch") - 1
+            )  # The switch is 0-indexed (0, 1), but the setting is 1 or 2
 
             # 3. Queue the prompt
+            logger.info("Queuing prompt...")
             response = self.comfy_client.queue_prompt(workflow)
             if not response or "prompt_id" not in response:
                 raise Exception("Failed to queue prompt or invalid response.")
 
             self._prompt_id = response["prompt_id"]
+            logger.info(f"Prompt queued with ID: {self._prompt_id}")
             self.on_status_update(
                 "Generating...", f"ID: {self._prompt_id[:8]}", "BLUE_200", "ORANGE_400"
             )
 
             # 4. Listen to WebSocket for completion and image
+            logger.debug("Listening to WebSocket for generation progress...")
             while self._is_generating:
                 msg = self.comfy_client.receive_ws_message()
                 if msg is None:
@@ -181,6 +193,7 @@ class GenerationService:
                 elif msg["type"] == "executed" and "data" in msg:
                     data = msg["data"]
                     if data.get("output") and "images" in data.get("output"):
+                        logger.info("Image data received.")
                         self.on_status_update(
                             "Downloading...", "Receiving image", "CYAN_200", "CYAN_400"
                         )
@@ -191,16 +204,19 @@ class GenerationService:
                         data.get("prompt_id") == self._prompt_id
                         and data.get("node") is None
                     ):
+                        logger.info("Execution finished for the prompt.")
                         break
 
             if not self._is_generating:
+                logger.warning("Generation was cancelled before completion.")
                 return
 
+            logger.info("Generation finished successfully.")
             self.on_status_update("Finished", "Ready", "WHITE70", "GREEN_400")
             self.on_progress_update(1.0)
 
         except Exception as e:
-            print(f"Generation process failed: {e}")
+            logger.error(f"Generation process failed: {e}", exc_info=True)
             self.on_status_update("Error", "Failed", "RED_500", "RED_500")
         finally:
             self._is_generating = False
@@ -215,8 +231,9 @@ class GenerationService:
             image_data = image_bytes[8:]
             img_base64 = base64.b64encode(image_data).decode("utf-8")
             self.on_preview_update(img_base64)
+            logger.debug("Preview image updated.")
         except Exception as e:
-            print(f"Failed to handle preview image: {e}")
+            logger.error(f"Failed to handle preview image: {e}", exc_info=True)
 
     def _handle_image_data(self, images: list):
         """
@@ -224,24 +241,27 @@ class GenerationService:
         and updates the UI via callback.
         """
         if not images:
+            logger.warning("No images found in the received data.")
             return
 
         image_info = images[-1]
         filename = image_info["filename"]
         subfolder = image_info["subfolder"]
         img_type = image_info["type"]
+        logger.info(f"Handling final image: {filename}")
 
         try:
             image_url = f"{self.comfy_client.api_url}/view?filename={filename}&subfolder={subfolder}&type={img_type}"
+            logger.debug(f"Fetching image from {image_url}")
             img_response = requests.get(image_url)
             img_response.raise_for_status()
 
             img_bytes = img_response.content
             img_base64 = base64.b64encode(img_bytes).decode("utf-8")
 
-            print(f"Image '{filename}' received and encoded to base64.")
+            logger.info(f"Image '{filename}' received and encoded to base64.")
             self.on_image_update(img_base64)
 
         except Exception as e:
-            print(f"Failed to download or encode image: {e}")
+            logger.error(f"Failed to download or encode image: {e}", exc_info=True)
             self.on_status_update("Error", "Image Fetch Failed", "RED_500", "RED_500")

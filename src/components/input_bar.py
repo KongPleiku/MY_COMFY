@@ -1,6 +1,9 @@
 # src/components/input_bar.py
 import flet as ft
+from utils.logger import get_logger
 from utils.data import ALL_PROMPTS
+
+logger = get_logger(__name__)
 
 
 class InputBar(ft.Container):
@@ -10,6 +13,7 @@ class InputBar(ft.Container):
         self.on_cancel = on_cancel
         self.on_settings_click = on_settings_click
         self.on_change = on_change
+        logger.info("InputBar initialized.")
 
         # --- Controls ---
         self.prompt_field = ft.TextField(
@@ -41,7 +45,7 @@ class InputBar(ft.Container):
             ft.icons.ARROW_UPWARD,
             bgcolor=ft.colors.BLUE_700,
             icon_color=ft.colors.WHITE,
-            on_click=lambda e: self.on_send(self.prompt_field.value),
+            on_click=lambda e: self._on_send_click(),
         )
 
         # --- Layout ---
@@ -80,17 +84,26 @@ class InputBar(ft.Container):
             ],
         )
 
+    def _on_send_click(self):
+        prompt = self.prompt_field.value
+        logger.info(f"Send button clicked with prompt: '{prompt}'")
+        self.on_send(prompt)
+
     def set_input_enabled(self, enabled: bool):
         """Enable or disable the send button."""
+        logger.debug(f"Setting input enabled to: {enabled}")
         self.send_button.disabled = not enabled
         self.update()
 
     def clear_prompt(self):
         """Clears the prompt field."""
+        logger.info("Clearing prompt field.")
+        self.prompt_field.value = ""
         self.update()
 
     def set_prompt(self, value: str):
         """Sets the prompt field's value."""
+        logger.debug(f"Setting prompt to: '{value}'")
         self.prompt_field.value = value
         self.update()
 
@@ -98,6 +111,7 @@ class InputBar(ft.Container):
         if self.on_change:
             self.on_change()
         typed_text = e.control.value
+        logger.debug(f"Text changed: '{typed_text}'")
         if not typed_text.strip():
             self.hide_suggestions()
             return
@@ -118,6 +132,7 @@ class InputBar(ft.Container):
         self._update_suggestions(matches[:10])
 
     def _update_suggestions(self, matches):
+        logger.debug(f"Updating suggestions with {len(matches)} matches.")
         self.suggestion_list.controls = [
             ft.ListTile(
                 title=ft.Text(m, color=ft.colors.WHITE),
@@ -134,6 +149,7 @@ class InputBar(ft.Container):
 
     def _use_suggestion(self, e):
         suggestion = e.control.data
+        logger.info(f"Suggestion selected: '{suggestion}'")
         current_text = self.prompt_field.value
         parts = current_text.split(",")
 
@@ -145,10 +161,12 @@ class InputBar(ft.Container):
         self.hide_suggestions()
 
     def hide_suggestions(self):
+        logger.debug("Hiding suggestions.")
         self.suggestion_container.height = 0
         self.suggestion_container.opacity = 0
         self.suggestion_container.update()
 
     def toggle_read_only(self, is_readonly):
+        logger.debug(f"Toggling read-only to: {is_readonly}")
         self.prompt_field.read_only = is_readonly
         self.prompt_field.update()

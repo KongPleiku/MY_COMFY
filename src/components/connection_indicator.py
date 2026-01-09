@@ -1,5 +1,8 @@
 # src/components/connection_indicator.py
 import flet as ft
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class ConnectionIndicator(ft.Container):
@@ -19,9 +22,13 @@ class ConnectionIndicator(ft.Container):
             content=self.status_dot,
             tooltip="Connection Status",
         )
+        logger.info("ConnectionIndicator initialized.")
 
     def update_status(self, is_connected: bool):
         """Updates the color of the status dot."""
+        logger.info(
+            f"Updating connection status to: {'Connected' if is_connected else 'Disconnected'}"
+        )
         self.status_dot.bgcolor = (
             ft.colors.GREEN_500 if is_connected else ft.colors.RED_500
         )

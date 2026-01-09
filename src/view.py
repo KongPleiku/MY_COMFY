@@ -1,6 +1,7 @@
 # src/views/home_view.py
 import flet as ft
 import threading
+from utils.logger import get_logger
 from utils.data import IMAGE_SRC
 from components.status_indicator import StatusIndicator
 from components.connection_indicator import ConnectionIndicator
@@ -15,6 +16,9 @@ import base64
 from PIL import Image
 import io
 
+logger = get_logger(__name__)
+
+
 class HomeView(ft.Stack):
     def __init__(self, page: ft.Page):
         super().__init__()
@@ -25,6 +29,7 @@ class HomeView(ft.Stack):
         self.current_height = 0
         self.current_width = 0
 
+        logger.info("Initializing HomeView components and services.")
         # --- 1. Initialize Services and Clients ---
         self.config_service = ConfigService()
         self.comfy_client = ComfyUIClient()  # ComfyUIClient instance is now sustained
@@ -85,13 +90,17 @@ class HomeView(ft.Stack):
             self.settings_sheet,
             self.focus_thief,
         ]
+        logger.info("HomeView layout built.")
 
     def did_mount(self):
+        logger.info("HomeView did_mount: Loading configuration and connecting.")
         self._load_config_and_connect()
 
     def _load_config_and_connect(self):
+        logger.debug("Loading configuration.")
         config = self.config_service.load_config()
         if config:
+            logger.debug("Configuration loaded successfully.")
             gen_settings = config.get("generation_setting")
             face_detailer_setting = config.get("face_detailer_setting")
             prompt = config.get("prompt")
@@ -99,12 +108,17 @@ class HomeView(ft.Stack):
 
             if gen_settings:
                 self.settings_sheet.set_settings(gen_settings, face_detailer_setting)
+                logger.debug("Generation settings applied.")
             if prompt:
                 self.input_bar.set_prompt(prompt)
+                logger.debug("Prompt applied.")
             if connection_url:
                 self.handle_connect_click(connection_url)
+        else:
+            logger.warning("No configuration found.")
 
     def _save_config(self, e=None):
+        logger.debug("Saving configuration.")
         gen_settings, face_detailer_setting = self.settings_sheet.get_settings()
         prompt = self.input_bar.prompt_field.value
         config = {
@@ -114,12 +128,14 @@ class HomeView(ft.Stack):
             "connection_url": self.comfy_client.api_url,
         }
         self.config_service.save_config(config)
+        logger.info("Configuration saved.")
 
     def start_generation_from_input(self, prompt: str):
         """
         Called by the InputBar's send button.
         Creates settings objects and starts the generation.
         """
+        logger.info(f"Starting generation for prompt: '{prompt}'")
         self._save_config()
         # For now, we'll create default settings and just change the prompt.
         # Later, these can be populated from the UI.
@@ -134,9 +150,10 @@ class HomeView(ft.Stack):
     def handle_connect_click(self, url: str):
         """Starts the connection process in a background thread."""
         if self._is_connecting:
+            logger.warning("Connection attempt ignored, already in progress.")
             return
         self._is_connecting = True
-        print(f"Attempting to connect to {url}...")
+        logger.info(f"Attempting to connect to {url}...")
         thread = threading.Thread(target=self._connect_worker, args=(url,))
         thread.start()
 
@@ -149,74 +166,82 @@ class HomeView(ft.Stack):
             )  # Connect using the sustained client
 
             if is_connected:
-                print("Successfully connected to ComfyUI.")
+                logger.info("Successfully connected to ComfyUI.")
                 self._save_config()
             else:
-                print("Failed to connect to ComfyUI.")
+                logger.error("Failed to connect to ComfyUI.")
 
             # Update the UI on the main thread
             self.connection_indicator.update_status(is_connected)
             self.page.update()  # Ensure UI updates are reflected
+        except Exception as e:
+            logger.error(f"Error during connection worker: {e}", exc_info=True)
         finally:
             self._is_connecting = False
 
     def update_image(self, image_b64: str):
+        logger.info("Updating main image.")
         # Inside the update_image(self, image_b64: str) method:
-         # 1. Decode the base64 string to binary
+        # 1. Decode the base64 string to binary
         image_bytes = base64.b64decode(image_b64)
-     
-         # 2. Open the image using Pillow
+
+        # 2. Open the image using Pillow
         img = Image.open(io.BytesIO(image_bytes))
-     
-         # 3. Check if rotation is needed and rotate the image object
+
+        # 3. Check if rotation is needed and rotate the image object
         config = self.config_service.load_config()
 
         current_height = config["generation_setting"]["height"]
         current_width = config["generation_setting"]["width"]
 
         if current_height < current_width:
+            logger.debug("Rotating image -90 degrees.")
             img = img.rotate(-90, expand=True)
-   
+
         # 4. Save the potentially rotated image to a new byte buffer
         output_buffer = io.BytesIO()
         img.save(output_buffer, format="PNG")
-   
+
         # 5. Get the new base64 string
         new_image_b64 = base64.b64encode(output_buffer.getvalue()).decode("utf-8")
-   
+
         # 6. Update the UI control with the new image and its correct dimensions
-        self.background_image.rotate = None # Ensure no framework rotation is applied
+        self.background_image.rotate = None  # Ensure no framework rotation is applied
         self.background_image.src_base64 = new_image_b64
         self.background_image.update()
+        logger.info("Main image updated successfully.")
 
     def update_preview(self, image_b64: str):
+        logger.info("Updating preview image.")
         # Inside the update_image(self, image_b64: str) method:
-         # 1. Decode the base64 string to binary
+        # 1. Decode the base64 string to binary
         image_bytes = base64.b64decode(image_b64)
-     
-         # 2. Open the image using Pillow
+
+        # 2. Open the image using Pillow
         img = Image.open(io.BytesIO(image_bytes))
-     
-         # 3. Check if rotation is needed and rotate the image object
+
+        # 3. Check if rotation is needed and rotate the image object
         config = self.config_service.load_config()
 
         current_height = config["generation_setting"]["height"]
         current_width = config["generation_setting"]["width"]
 
         if current_height < current_width:
+            logger.debug("Rotating preview image -90 degrees.")
             img = img.rotate(-90, expand=True)
-   
+
         # 4. Save the potentially rotated image to a new byte buffer
         output_buffer = io.BytesIO()
         img.save(output_buffer, format="PNG")
-   
+
         # 5. Get the new base64 string
         new_image_b64 = base64.b64encode(output_buffer.getvalue()).decode("utf-8")
-   
+
         # 6. Update the UI control with the new image and its correct dimensions
-        self.background_image.rotate = None # Ensure no framework rotation is applied
+        self.background_image.rotate = None  # Ensure no framework rotation is applied
         self.background_image.src_base64 = new_image_b64
         self.background_image.update()
+        logger.info("Preview image updated successfully.")
 
     def _build_progress_bar(self):
         return ft.Container(
@@ -249,6 +274,7 @@ class HomeView(ft.Stack):
     # --- Callbacks triggered by Service ---
 
     def update_status_widget(self, action, status, ac_color, st_color):
+        logger.debug(f"Updating status widget: {action} - {status}")
         self.status_widget.update_status(action, status, ac_color, st_color)
 
         is_generating = action in ["Queuing...", "Generating...", "Downloading..."]
@@ -285,6 +311,7 @@ class HomeView(ft.Stack):
             self.progress_fill_ref.current.update()
 
     def close_overlays(self, e):
+        logger.debug("Closing overlays.")
         self.focus_thief.focus()
         self.input_bar.hide_suggestions()
 
@@ -297,6 +324,8 @@ class HomeView(ft.Stack):
 
     def toggle_settings(self, e):
         if self.settings_sheet.offset.y == 0:
+            logger.debug("Closing settings sheet.")
             self.close_overlays(None)
         else:
+            logger.debug("Opening settings sheet.")
             self.settings_sheet.open()

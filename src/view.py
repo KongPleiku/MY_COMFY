@@ -1,7 +1,7 @@
 # src/views/home_view.py
 import flet as ft
 import threading
-from utils.logger import get_logger
+from utils.logger import get_logger, set_flet_logging, set_default_logging
 from utils.data import IMAGE_SRC
 from components.status_indicator import StatusIndicator
 from components.connection_indicator import ConnectionIndicator
@@ -25,6 +25,7 @@ class HomeView(ft.Stack):
         self.page = page
         self.expand = True
         self._is_connecting = False
+        self._dev_mode = False
 
         self.current_height = 0
         self.current_width = 0
@@ -57,6 +58,7 @@ class HomeView(ft.Stack):
             on_close=lambda: self.close_overlays(None),
             on_connect_click=self.handle_connect_click,
             on_change=self._save_config,
+            on_dev_mode_change=self.toggle_dev_mode,
         )
 
         self.background_image = ft.Image(
@@ -75,6 +77,20 @@ class HomeView(ft.Stack):
         self.progress_fill_ref = ft.Ref[ft.Container]()
         self.progress_container = self._build_progress_bar()
 
+        # Dev mode log display
+        self.log_display = ft.ListView(expand=True, auto_scroll=True)
+        self.log_container = ft.Container(
+            content=self.log_display,
+            visible=False,
+            bgcolor=ft.colors.with_opacity(0.8, ft.colors.BLACK),
+            padding=10,
+            border_radius=10,
+            top=10,
+            left=10,
+            right=10,
+            height=self.page.height * 0.4,
+        )
+
         # --- 3. Build Layout ---
         self.controls = [
             ft.InteractiveViewer(
@@ -88,6 +104,7 @@ class HomeView(ft.Stack):
             self.input_bar,
             self.progress_container,
             self.settings_sheet,
+            self.log_container,
             self.focus_thief,
         ]
         logger.info("HomeView layout built.")
@@ -105,6 +122,9 @@ class HomeView(ft.Stack):
             face_detailer_setting = config.get("face_detailer_setting")
             prompt = config.get("prompt")
             connection_url = config.get("connection_url")
+            self._dev_mode = config.get("dev_mode", False)
+            self.settings_sheet.dev_mode_switch.value = self._dev_mode
+            self.toggle_dev_mode(None)
 
             if gen_settings:
                 self.settings_sheet.set_settings(gen_settings, face_detailer_setting)
@@ -126,6 +146,7 @@ class HomeView(ft.Stack):
             "face_detailer_setting": face_detailer_setting,
             "prompt": prompt,
             "connection_url": self.comfy_client.api_url,
+            "dev_mode": self._dev_mode,
         }
         self.config_service.save_config(config)
         logger.info("Configuration saved.")
@@ -329,3 +350,15 @@ class HomeView(ft.Stack):
         else:
             logger.debug("Opening settings sheet.")
             self.settings_sheet.open()
+
+    def toggle_dev_mode(self, e):
+        self._dev_mode = self.settings_sheet.dev_mode_switch.value
+        self.log_container.visible = self._dev_mode
+        if self._dev_mode:
+            set_flet_logging(self.log_display)
+            logger.info("Dev mode enabled.")
+        else:
+            set_default_logging()
+            logger.info("Dev mode disabled.")
+        self.log_container.update()
+        self._save_config()

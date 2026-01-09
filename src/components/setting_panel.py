@@ -8,11 +8,19 @@ logger = get_logger(__name__)
 
 
 class SettingsPanel(ft.Container):
-    def __init__(self, page_height, on_close, on_connect_click, on_change=None):
+    def __init__(
+        self,
+        page_height,
+        on_close,
+        on_connect_click,
+        on_change=None,
+        on_dev_mode_change=None,
+    ):
         super().__init__()
         self.on_close_callback = on_close
         self.on_connect_click = on_connect_click
         self.on_change = on_change
+        self.on_dev_mode_change = on_dev_mode_change
         self._is_setting_from_config = False
         logger.info("SettingsPanel initialized.")
 
@@ -232,11 +240,25 @@ class SettingsPanel(ft.Container):
             ]
         )
 
+        self.dev_mode_switch = ft.Switch(
+            label="Dev Mode", value=False, on_change=self.on_dev_mode_change
+        )
+        self.debug_tab = ft.Column(
+            [
+                ft.Row(
+                    [self.dev_mode_switch],
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                ),
+            ],
+            expand=True,
+        )
+
         self.tabs = ft.Tabs(
             selected_index=0,
             tabs=[
                 ft.Tab(text="SDXL Settings", icon=ft.icons.TUNE, content=self.sdxl_tab),
                 ft.Tab(text="Connection", icon=ft.icons.LINK, content=self.conn_tab),
+                ft.Tab(text="Debug", icon=ft.icons.BUG_REPORT, content=self.debug_tab),
             ],
             expand=True,
         )
@@ -307,6 +329,10 @@ class SettingsPanel(ft.Container):
         self.face_detailer_settings_container.opacity = 1 if e.control.value else 0
         self.update()
         self._on_setting_change(e)
+
+    def toggle_dev_mode(self, e):
+        if self.on_dev_mode_change:
+            self.on_dev_mode_change(e)
 
     def _on_setting_change(self, e):
         if not self._is_setting_from_config and self.on_change:

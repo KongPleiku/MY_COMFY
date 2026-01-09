@@ -112,7 +112,7 @@ class GenerationService:
         try:
             logger.debug("Loading workflow template from 'json/GGUF_WORKFLOW_API.json'")
             # 1. Load the workflow template
-            with open("json/GGUF_WORKFLOW_API.json", "r") as f:
+            with open("src/assets/GGUF_WORKFLOW_API.json", "r") as f:
                 workflow = json.load(f)
 
             # 2. Modify the workflow with GenerationSetting

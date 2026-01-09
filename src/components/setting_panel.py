@@ -53,23 +53,28 @@ class SettingsPanel(ft.Container):
             on_click=self._randomize_seed,
         )
 
+        self.steps_value = ft.TextField(value="20", read_only=True, width=50)
+        self.cfg_value = ft.TextField(value="4", read_only=True, width=50)
+
         self.steps_slider = ft.Slider(
             min=1,
             max=40,
             divisions=39,
-            label="Steps: {value}",
             value=20,
-            expand=True,  # Added expand=True
-            on_change=self._on_setting_change,
+            expand=True,
         )
         self.cfg_slider = ft.Slider(
             min=1,
             max=10,
             divisions=9,
-            label="CFG: {value}",
             value=4,
-            expand=True,  # Added expand=True
-            on_change=self._on_setting_change,
+            expand=True,
+        )
+        self.steps_slider.on_change = lambda e: self._update_slider_textfield(
+            e, self.steps_value
+        )
+        self.cfg_slider.on_change = lambda e: self._update_slider_textfield(
+            e, self.cfg_value
         )
 
         self.sampler_dropdown = ft.Dropdown(
@@ -210,10 +215,8 @@ class SettingsPanel(ft.Container):
                     alignment=ft.MainAxisAlignment.START,
                 ),
                 ft.Row([self.width_field, self.height_field]),
-                ft.Text("Steps"),
-                self.steps_slider,
-                ft.Text("CFG Scale"),
-                self.cfg_slider,
+                self._create_slider_row("Steps", self.steps_slider, self.steps_value),
+                self._create_slider_row("CFG Scale", self.cfg_slider, self.cfg_value),
                 ft.Row([self.sampler_dropdown, self.scheduler_dropdown]),
                 ft.Divider(height=10, color="transparent"),
                 ft.Divider(),
@@ -387,6 +390,9 @@ class SettingsPanel(ft.Container):
                 self.cfg_slider.min,
                 self.cfg_slider.max,
             )
+
+            self.steps_value.value = str(int(self.steps_slider.value))
+            self.cfg_value.value = str(int(self.cfg_slider.value))
 
             # Face detailer switch
             use_face_detailer = gen_settings.get("Face_detailer_switch", 1) == 2

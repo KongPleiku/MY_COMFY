@@ -17,8 +17,13 @@ class AppConfig(TypedDict):
 
 
 class ConfigService:
-    def __init__(self, config_path="storage/data/config.json"):
-        self.config_path = config_path
+    def __init__(self, config_filename="config.json"):
+        storage_dir = os.getenv("FLET_APP_STORAGE_DATA")
+        if storage_dir:
+            self.config_path = os.path.join(storage_dir, config_filename)
+        else:
+            # Fallback for local development
+            self.config_path = os.path.join("storage", "data", config_filename)
         self._ensure_config_dir_exists()
         logger.info(f"ConfigService initialized with path: {self.config_path}")
 

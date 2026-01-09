@@ -305,7 +305,7 @@ class HomeView(ft.Stack):
             self.close_overlays(None)
         elif action == "Finished":
             # Optionally clear prompt on finish
-            self.input_bar.clear_prompt()
+            pass
 
     def update_progress_bar(self, value: float):
         available_width = self.page.width

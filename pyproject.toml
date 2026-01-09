@@ -4,25 +4,27 @@ version = "0.1.0"
 description = ""
 readme = "README.md"
 requires-python = ">=3.8"
+
+# --- CHANGE IS HERE ---
 dependencies = [
-  "flet[all]==0.25.2",
-  "pre-commit>=3.5.0",
+  "flet==0.25.2",             # Changed from "flet[all]"
+  "websocket-client>=1.8.0",
+  "requests>=2.31.0",
+  "pillow>=10.4.0",
+]
+# ----------------------
+
+[tool.uv]
+# Move your dev tools here so "uv sync" still works on your PC
+dev-dependencies = [
+    "flet[all]==0.25.2",
+    "pre-commit>=3.5.0",
 ]
 
-
 [tool.flet]
-# org name in reverse domain name notation, e.g. "com.mycompany".
-# Combined with project.name to build bundle ID for iOS and Android apps
 org = "com.mycompany"
-
-# project display name that is used as an app title on Android and iOS home screens,
-# shown in window titles and about app dialogs on desktop.
 product = "my_comfy"
-
-# company name to display in about app dialogs
 company = "Flet"
-
-# copyright text to display in about app dialogs
 copyright = "Copyright (C) 2024 by Flet"
 
 [tool.flet.app]

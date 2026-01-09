@@ -88,7 +88,7 @@ class HomeView(ft.Stack):
             top=10,
             left=10,
             right=10,
-            height=self.page.height * 0.4,
+            height=self.page.height * 0.2,
         )
 
         # --- 3. Build Layout ---
